@@ -14,6 +14,7 @@ window.
 - Displays **source text**, **IPA**, and **translation**.
 - Google Translate adapter works out of the box; Azure Translator (Bing), DeepSeek,
   and Youdao are also available.
+- Bundled top-2000 English word list: common words translate instantly, even offline.
 - Uses current Neovim APIs: `vim.system`, `vim.json`, `vim.on_key`,
   `nvim_open_win`, and `getregion`.
 - Keeps a small in-memory cache and never blocks the editor while requesting a
@@ -23,7 +24,7 @@ window.
 
 - Neovim 0.10 or newer (tested on 0.12).
 - `curl` available on `$PATH`.
-- Internet access.
+- Internet access (only for text outside the bundled dictionary and cache).
 
 The default Google provider uses Google's public web-translation endpoint. It
 does not require a key, but it is not a Google Cloud SLA-backed API, can change,
@@ -83,6 +84,12 @@ require("magpie").setup({
     enabled = true,
     delay_ms = 550,
   },
+
+  cache = {
+    persist = true, -- keep translations across sessions
+    max_disk_entries = 500,
+  },
+  local_dictionary = { enabled = true },
 
   -- A Visual selection made by mouse drag is translated automatically.
   mouse_selection = { enabled = true },
@@ -168,6 +175,17 @@ require("magpie").setup({
 })
 ```
 
+### Local dictionary (offline)
+
+Magpie bundles the ~2000 most common English words (IPA + Chinese glosses) and
+checks them before any network request. Word list from
+[hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT).
+
+Lookup priority: in-memory cache → disk cache → local dictionary → network.
+With the default `target_lang = "zh-CN"`, covered words work fully offline;
+anything outside the bundle or cache still needs the network. Disable with
+`local_dictionary = { enabled = false }`.
+
 ### Disable automatic mouse actions
 
 ```lua
@@ -186,6 +204,7 @@ translate.translate("A clear mind", { target_lang = "zh-CN" })
 translate.translate_cursor()
 translate.translate_visual()
 translate.close()
+translate.last_result -- 最近一次结果 { text, phonetic, translation }
 ```
 
 ## Notes on IPA

@@ -11,7 +11,8 @@ Contents                                                           *magpie*
 ==============================================================================
 1. Setup                                                       *magpie-setup*
 
-Requires Neovim 0.10+, curl, and network access.  With lazy.nvim: >lua
+Requires Neovim 0.10+ and curl; network access is only needed for text
+outside the bundled dictionary and cache.  With lazy.nvim: >lua
   {
     "your-name/magpie.nvim",
     main = "magpie",
@@ -56,6 +57,8 @@ made by mouse drag is translated when the mouse button is released.
     provider = "google", -- "google", "bing", "deepseek" or "youdao"
     hover = { enabled = true, delay_ms = 550 },
     mouse_selection = { enabled = true },
+    cache = { persist = true, max_disk_entries = 500 },
+    local_dictionary = { enabled = true },
     keymaps = { normal = "<leader>tw", visual = "<leader>tw" },
   })
 <
@@ -70,5 +73,11 @@ needed by the Azure resource.
 DeepSeek uses an LLM chat API.  Set `provider = "deepseek"` and provide
 `deepseek.api_key` or $DEEPSEEK_API_KEY.  Youdao needs `provider = "youdao"`
 with `youdao.app_key`/`youdao.app_secret` or $YOUDAO_APP_KEY/$YOUDAO_APP_SECRET.
+
+A bundled list of the ~2000 most common English words is checked before any
+network request when `local_dictionary.enabled = true` (default) and
+`target_lang` starts with "zh".  With `cache.persist = true` (default),
+covered and previously translated text works offline.  Cache files live in
+|stdpath()| "data"/magpie/.
 
 vim:tw=78:ts=8:noet:ft=help

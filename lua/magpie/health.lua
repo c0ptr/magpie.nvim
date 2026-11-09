@@ -16,6 +16,19 @@ local function check_curl()
     end
 end
 
+local function check_local_dictionary()
+    local ok, size = pcall(function()
+        return require("magpie.dict").size()
+    end)
+    if not ok then
+        vim.health.error("local dictionary failed to load")
+    elseif size > 0 then
+        vim.health.ok(string.format("local dictionary: %d bundled words", size))
+    else
+        vim.health.warn("local dictionary is empty")
+    end
+end
+
 local function check_provider(name, env, optional)
     local value = vim.env[env]
     if value and value ~= "" then
@@ -31,6 +44,7 @@ function M.check()
     vim.health.start("Magpie")
     check_version()
     check_curl()
+    check_local_dictionary()
 
     check_provider("google", "GOOGLE_TRANSLATE_API_KEY", true)
     check_provider("bing", "AZURE_TRANSLATOR_KEY", false)

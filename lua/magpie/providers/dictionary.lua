@@ -21,7 +21,7 @@ function M.lookup(word, options, callback)
     url,
   }
 
-  util.run_curl(args, function(body, request_error)
+  return util.run_curl(args, function(body, request_error)
     if request_error then
       callback(nil)
       return

@@ -52,7 +52,7 @@ local function translate_with_public_endpoint(text, options, callback)
     "q=" .. text,
   }
 
-  util.run_curl(args, function(body, request_error)
+  return util.run_curl(args, function(body, request_error)
     if request_error then
       if request_error:match("429") then
         callback(nil, "Google's public endpoint is rate limited. Try again later or configure google.api_key for Google Cloud Translation.")
@@ -93,7 +93,7 @@ local function translate_with_cloud_api(text, options, callback)
     vim.json.encode(request),
   }
 
-  util.run_curl(args, function(body, request_error)
+  return util.run_curl(args, function(body, request_error)
     if request_error then
       callback(nil, "Google Cloud Translation request failed: " .. request_error)
       return
@@ -119,10 +119,9 @@ end
 
 function M.translate(text, options, callback)
   if options.google.api_key and options.google.api_key ~= "" then
-    translate_with_cloud_api(text, options, callback)
-    return
+    return translate_with_cloud_api(text, options, callback)
   end
-  translate_with_public_endpoint(text, options, callback)
+  return translate_with_public_endpoint(text, options, callback)
 end
 
 return M

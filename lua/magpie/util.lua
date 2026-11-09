@@ -8,6 +8,19 @@ function M.trim(text)
     return (text:gsub("^%s*(.-)%s*$", "%1"))
 end
 
+function M.normalize_text(text)
+    return (M.trim(text):gsub("%s+", " "))
+end
+
+-- djb2 hash, 32-bit, lowercase hex; used for cache-key fingerprints.
+function M.hash_hex(text)
+    local hash = 5381
+    for i = 1, #text do
+        hash = (hash * 33 + string.byte(text, i)) % 4294967296
+    end
+    return string.format("%08x", math.floor(hash))
+end
+
 function M.is_english_word(text)
     return text:match("^[A-Za-z][A-Za-z'%-]*$") ~= nil
 end
@@ -29,10 +42,10 @@ end
 function M.run_curl(args, callback)
     if vim.fn.executable("curl") ~= 1 then
         callback(nil, "`curl` is required. Install curl and make it available on $PATH.")
-        return
+        return nil
     end
 
-    vim.system(args, { text = true }, function(result)
+    return vim.system(args, { text = true }, function(result)
         vim.schedule(function()
             if result.code ~= 0 then
                 local detail = M.trim(result.stderr or "")

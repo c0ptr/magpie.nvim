@@ -53,7 +53,7 @@ function M.translate(text, options, callback)
         cfg.endpoint,
     })
 
-    util.run_curl(args, function(stdout, err)
+    return util.run_curl(args, function(stdout, err)
         if err then
             callback(nil, err)
             return

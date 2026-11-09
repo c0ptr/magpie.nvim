@@ -59,7 +59,7 @@ function M.translate(text, options, callback)
     end
     vim.list_extend(args, { "-d", vim.json.encode(body), cfg.endpoint })
 
-    util.run_curl(args, function(stdout, err)
+    return util.run_curl(args, function(stdout, err)
         if err then
             callback(nil, err)
             return

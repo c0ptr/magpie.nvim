@@ -40,7 +40,7 @@ function M.translate(text, options, callback)
         table.insert(args, "Ocp-Apim-Subscription-Region: " .. config.region)
     end
 
-    util.run_curl(args, function(body, request_error)
+    return util.run_curl(args, function(body, request_error)
         if request_error then
             callback(nil, "Bing/Azure Translator request failed: " .. request_error)
             return

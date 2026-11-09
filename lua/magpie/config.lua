@@ -56,8 +56,15 @@ M.defaults = {
         timeout_ms = 5000,
     },
 
+    local_dictionary = {
+        enabled = true,
+    },
+
     cache = {
         max_entries = 100,
+        persist = true,
+        max_disk_entries = 500,
+        dir = nil,
     },
 
     ui = {
@@ -82,6 +89,9 @@ local function validate(options)
         },
         hover_delay = { options.hover.delay_ms, "number" },
         cache_size = { options.cache.max_entries, "number" },
+        cache_disk_size = { options.cache.max_disk_entries, "number" },
+        cache_persist = { options.cache.persist, "boolean" },
+        local_dictionary_enabled = { options.local_dictionary.enabled, "boolean" },
         ui_max_width = { options.ui.max_width, "number" },
     })
 
@@ -90,6 +100,9 @@ local function validate(options)
     end
     if options.cache.max_entries < 0 then
         error("Magpie: cache.max_entries must not be negative")
+    end
+    if options.cache.max_disk_entries < 0 then
+        error("Magpie: cache.max_disk_entries must not be negative")
     end
 end
 
@@ -104,6 +117,9 @@ function M.build(options)
     merged.deepseek.api_key = merged.deepseek.api_key or vim.env.DEEPSEEK_API_KEY
     merged.youdao.app_key = merged.youdao.app_key or vim.env.YOUDAO_APP_KEY
     merged.youdao.app_secret = merged.youdao.app_secret or vim.env.YOUDAO_APP_SECRET
+    if merged.cache.dir == nil or merged.cache.dir == "" then
+        merged.cache.dir = vim.fn.stdpath("data") .. "/magpie"
+    end
     validate(merged)
     return merged
 end

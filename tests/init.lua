@@ -177,6 +177,8 @@ translate.setup({
   hover = { enabled = false },
   mouse_selection = { enabled = false },
   dictionary = { enabled = false },
+  local_dictionary = { enabled = false },
+  cache = { persist = false },
   google = { api_key = "" },
 })
 vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "hello world" })
@@ -189,5 +191,70 @@ end), "Visual translation should open a result window")
 translate.close()
 
 vim.system = original_system
+local util_module = require("magpie.util")
+assert_equal("hello world", util_module.normalize_text("  hello   world  "), "normalize_text should trim and collapse whitespace")
+
+local dict_module = require("magpie.dict")
+assert(dict_module.size() >= 1000, "local dictionary should bundle at least 1000 words")
+local hello_entry = dict_module.lookup("hello")
+assert(hello_entry and hello_entry.zh ~= "", "hello should be in the local dictionary")
+assert(hello_entry.ipa and hello_entry.ipa:match("^/") ~= nil, "hello should carry IPA")
+
+-- Offline local-dictionary lookup must never touch the network.
+vim.system = function()
+  error("network must not be used for local dictionary hits")
+end
+ui.close()
+translate.setup({
+  hover = { enabled = false },
+  mouse_selection = { enabled = false },
+  local_dictionary = { enabled = true },
+  cache = { persist = false },
+})
+translate.translate("hello", {})
+assert(ui.is_open(), "local dictionary hit should open a result window")
+assert(translate.last_result and translate.last_result.translation ~= "" and translate.last_result.translation ~= "hello", "local hit should fill a translation")
+
+-- In-flight dedup: the same text translated twice while the first request
+-- is pending must spawn only one process.
+local system_calls = 0
+local pending_system_callback
+vim.system = function(_, _, callback)
+  system_calls = system_calls + 1
+  pending_system_callback = callback
+  return { kill = function() end }
+end
+translate.setup({
+  hover = { enabled = false },
+  mouse_selection = { enabled = false },
+  dictionary = { enabled = false },
+  local_dictionary = { enabled = false },
+  cache = { persist = false },
+})
+ui.close()
+translate.translate("dedup target", {})
+translate.translate("dedup target", {})
+assert_equal(1, system_calls, "second identical trigger should join the in-flight request")
+local previous_result = translate.last_result
+pending_system_callback({
+  code = 0,
+  stdout = '[[["去重","dedup target",null,null,10]],null,"en"]',
+  stderr = "",
+})
+assert(vim.wait(1000, function()
+  return translate.last_result ~= previous_result
+end), "joined request should deliver the result")
+assert_equal("去重", translate.last_result.translation)
+
+-- Starting a new translation for different text kills the stale request.
+local killed = 0
+vim.system = function(_, _, callback)
+  system_calls = system_calls + 1
+  return { kill = function() killed = killed + 1 end }
+end
+translate.translate("first target", {})
+translate.translate("second target", {})
+assert_equal(1, killed, "the stale in-flight request should be killed")
+
 print("magpie tests passed")
 vim.cmd("quitall!")
