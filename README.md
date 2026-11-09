@@ -1,169 +1,132 @@
-# Magpie
+# Magpie.nvim
 
-A dependency-free Neovim translation plugin for English words and sentences. It
-shows the source text, IPA pronunciation, and translation in a native floating
-window.
+A lightweight, dependency-free translation plugin for Neovim. Translate the word under your cursor, a Visual selection, or text you provide, then view the source text, pronunciation, and translation in a native floating window.
 
-![Neovim](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
+> **README authorship:** This README was written by GitHub Copilot.
+
+![Neovim 0.10+](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
 
 ## Features
 
-- Translate the word under the cursor or under the mouse pointer.
-- Translate Visual selections, including selections made by dragging the mouse.
-- Native non-focusable floating window, positioned next to the cursor or mouse.
-- Displays **source text**, **IPA**, and **translation**.
-- Google Translate adapter works out of the box; Azure Translator (Bing), DeepSeek,
-  and Youdao are also available.
-- Bundled top-2000 English word list: common words translate instantly, even offline.
-- Uses current Neovim APIs: `vim.system`, `vim.json`, `vim.on_key`,
-  `nvim_open_win`, and `getregion`.
-- Keeps a small in-memory cache and never blocks the editor while requesting a
-  translation.
+- Translate the word under the cursor, a Visual selection, or arbitrary text.
+- Optional mouse-hover and mouse-drag selection translation.
+- Non-focusable floating window showing the original text, IPA when available, and translation.
+- Four providers: Google Translate, Microsoft Azure Translator (Bing), DeepSeek, and Youdao.
+- Bundled English-to-Chinese dictionary for roughly 2,000 common words, available offline.
+- In-memory and optional persistent disk cache; network requests do not block the editor.
+- `:checkhealth magpie` diagnostics.
 
 ## Requirements
 
-- Neovim 0.10 or newer (tested on 0.12).
-- `curl` available on `$PATH`.
-- Internet access (only for text outside the bundled dictionary and cache).
+- Neovim 0.10 or newer.
+- `curl` on `$PATH` for network translation and pronunciation lookups.
+- Internet access for uncached text not covered by the bundled dictionary.
 
-The default Google provider uses Google's public web-translation endpoint. It
-does not require a key, but it is not a Google Cloud SLA-backed API, can change,
-and may temporarily rate-limit automated traffic. Set `google.api_key` to use
-the official Google Cloud Translation Basic API instead, or use the key-backed
-`bing` provider below.
+The default Google provider uses Google's public web-translation endpoint. It needs no API key, but is not a Google Cloud SLA-backed API and may change or rate-limit requests. Configure a Google Cloud Translation Basic API key to use Google's official v2 endpoint instead.
 
-## lazy.nvim
+## Installation
+
+### lazy.nvim
 
 ```lua
 {
-  "your-name/magpie.nvim",
+  "c0ptr/magpie.nvim",
   main = "magpie",
   event = "VeryLazy",
-  opts = {
-    target_lang = "zh-CN", -- the default
-  },
-  keys = {
-    { "<leader>tw", "<cmd>Magpie<cr>", mode = { "n", "x" }, desc = "Translate word or selection" },
-  },
+  opts = {}, -- calls require("magpie").setup({})
 }
 ```
 
-`opts = {}` calls `require("magpie").setup({})` automatically. If you
-prefer the plugin's built-in mappings, omit `keys`; `<leader>tw` is installed in
-Normal and Visual mode by default.
+The default keymap is `<leader>tw` in Normal and Visual mode. To define the mapping yourself, set the built-in mappings to `false` and add your preferred `keys` entries in lazy.nvim.
 
 ## Usage
 
-| Action | Default behavior |
+| Action | Result |
 | --- | --- |
 | `<leader>tw` in Normal mode | Translate the word under the cursor |
-| `<leader>tw` in Visual mode | Translate the selected word or sentence |
-| Hover a word with the mouse | Translate after a short delay |
-| Drag to make a Visual selection with the mouse | Translate on mouse release |
-| `:Magpie [text]` | Translate an explicit text, or the current word/selection |
-| `:MagpieClose` | Close the floating result window |
+| `<leader>tw` in Visual mode | Translate the selection |
+| Hover over a word | Translate after a short delay (enabled by default) |
+| Drag to make a Visual selection | Translate on mouse release (enabled by default) |
+| `:Magpie [text]` | Translate the given text, or the current selection/word when omitted |
+| `:MagpieClose` | Close the result window |
 
-Mouse hover needs `set mouse=a` in terminal Neovim. The plugin enables
-`mousemoveevent` only while hover translation is enabled; it receives events
-through `vim.on_key`, so it does not replace your `<MouseMove>` mappings.
+Mouse interactions require `set mouse=a` in terminal Neovim. Hover uses `vim.on_key` and enables `mousemoveevent` while configured; it does not replace existing mouse-move mappings.
 
 ## Configuration
 
+All options are optional. The following shows the defaults:
+
 ```lua
 require("magpie").setup({
-  target_lang = "zh-CN",
   source_lang = "auto",
-  provider = "google", -- "google", "bing", "deepseek" or "youdao"
+  target_lang = "zh-CN",
+  provider = "google", -- "google", "bing", "deepseek", or "youdao"
 
   keymaps = {
-    normal = "<leader>tw",
-    visual = "<leader>tw",
+    normal = "<leader>tw", -- set false to disable
+    visual = "<leader>tw", -- set false to disable
   },
-
-  hover = {
-    enabled = true,
-    delay_ms = 550,
-  },
-
+  hover = { enabled = true, delay_ms = 550 },
+  mouse_selection = { enabled = true },
+  local_dictionary = { enabled = true },
   cache = {
-    persist = true, -- keep translations across sessions
+    persist = true,
+    max_entries = 100,
     max_disk_entries = 500,
   },
-  local_dictionary = { enabled = true },
-
-  -- A Visual selection made by mouse drag is translated automatically.
-  mouse_selection = { enabled = true },
-
   ui = {
     border = "rounded",
     max_width = 72,
+    min_width = 30,
     winblend = 0,
   },
 })
 ```
 
-### Azure Translator (Bing)
+Persistent cache data is stored under `stdpath("data")/magpie/`. Disable automatic mouse actions with `hover = { enabled = false }` and/or `mouse_selection = { enabled = false }`.
 
-Microsoft's Translator service is the supported Bing translation API. Create an
-Azure Translator resource, then configure it with either environment variables
-or Lua options:
+### Providers and credentials
+
+Keep API credentials out of your config files by using environment variables. Magpie reads the relevant environment variables automatically; equivalent Lua options are shown below.
+
+**Azure Translator (Bing)** — create an Azure Translator resource. Set `AZURE_TRANSLATOR_KEY` and, when required by your resource, `AZURE_TRANSLATOR_REGION`.
 
 ```lua
 require("magpie").setup({
   provider = "bing",
   bing = {
     api_key = vim.env.AZURE_TRANSLATOR_KEY,
-    region = vim.env.AZURE_TRANSLATOR_REGION, -- required for multi-service resources
+    region = vim.env.AZURE_TRANSLATOR_REGION,
     -- endpoint = "https://api.cognitive.microsofttranslator.com",
   },
 })
 ```
 
-The key is sent only to the configured Azure endpoint and is never written to a
-buffer, log, or cache.
-
-### Google Cloud Translation
-
-When a Google Cloud Translation Basic API key is present, the Google adapter
-automatically switches from the public endpoint to Google's official v2 API:
+**Google Cloud Translation Basic** — set `GOOGLE_TRANSLATE_API_KEY` to use the official v2 API instead of the public endpoint.
 
 ```lua
 require("magpie").setup({
   provider = "google",
-  google = {
-    api_key = vim.env.GOOGLE_TRANSLATE_API_KEY,
-  },
+  google = { api_key = vim.env.GOOGLE_TRANSLATE_API_KEY },
 })
 ```
 
-This uses `https://translation.googleapis.com/language/translate/v2`; enable
-Cloud Translation Basic in the Google Cloud project that owns the key.
-
-### DeepSeek
-
-DeepSeek is an LLM-backed provider that often renders whole sentences more
-naturally. It needs an API key:
+**DeepSeek** — set `DEEPSEEK_API_KEY`. DeepSeek translates through its chat-completions API, so responses may take longer than other providers.
 
 ```lua
 require("magpie").setup({
   provider = "deepseek",
   deepseek = {
     api_key = vim.env.DEEPSEEK_API_KEY,
-    -- model = "deepseek-flash", -- the default
-    -- Disable thinking mode for faster answers:
+    -- model = "deepseek-flash",
+    -- Optional: disable thinking for faster responses.
     extra_body = { thinking = { type = "disabled" } },
     -- proxy = "http://127.0.0.1:7890",
   },
 })
 ```
 
-Generated answers take a moment; the window shows a loading state until the
-response arrives.
-
-### Youdao
-
-Youdao requires free API credentials from
-[AI 开放平台](https://ai.youdao.com/):
+**Youdao** — create credentials through the [Youdao AI Open Platform](https://ai.youdao.com/) and set `YOUDAO_APP_KEY` and `YOUDAO_APP_SECRET`.
 
 ```lua
 require("magpie").setup({
@@ -175,55 +138,36 @@ require("magpie").setup({
 })
 ```
 
-### Local dictionary (offline)
+### Offline dictionary and pronunciation
 
-Magpie bundles the ~2000 most common English words (IPA + Chinese glosses) and
-checks them before any network request. Word list from
-[hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT).
+With the default `target_lang = "zh-CN"`, Magpie checks its bundled list of about 2,000 common English words before making a network request. The word list is sourced from [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT). In-memory cache, disk cache, and the local dictionary are checked before the selected translation provider.
 
-Lookup priority: in-memory cache → disk cache → local dictionary → network.
-With the default `target_lang = "zh-CN"`, covered words work fully offline;
-anything outside the bundle or cache still needs the network. Disable with
-`local_dictionary = { enabled = false }`.
+IPA is looked up separately using the free Dictionary API for single English words. IPA may display as `—` when unavailable; sentences still translate normally. The bundled dictionary is only for English words translated to Chinese.
 
-### Disable automatic mouse actions
+## Lua API
 
 ```lua
-require("magpie").setup({
-  hover = { enabled = false },
-  mouse_selection = { enabled = false },
-})
+local magpie = require("magpie")
+
+magpie.translate("A clear mind", { target_lang = "zh-CN" })
+magpie.translate_cursor()
+magpie.translate_visual()
+magpie.close()
+
+-- Most recent result: { text, phonetic, translation }
+print(vim.inspect(magpie.last_result))
 ```
 
-## Public API
+## Health check and tests
 
-```lua
-local translate = require("magpie")
+Run `:checkhealth magpie` to check the Neovim version, `curl`, bundled dictionary, and provider credentials.
 
-translate.translate("A clear mind", { target_lang = "zh-CN" })
-translate.translate_cursor()
-translate.translate_visual()
-translate.close()
-translate.last_result -- 最近一次结果 { text, phonetic, translation }
-```
-
-## Notes on IPA
-
-Translation services do not reliably expose IPA. For a single English word,
-the plugin looks up IPA using the free Dictionary API after translation. If it
-is unavailable, or the selected text is a sentence, the IPA field intentionally
-shows `—`; translation still succeeds.
-
-## Development
-
-Run the lightweight, network-free test suite with:
+Run the network-free test suite with:
 
 ```sh
 nvim --headless --clean -u tests/init.lua
 ```
 
-Check the runtime with `:checkhealth magpie`.
-
 ## License
 
-MIT
+[MIT](LICENSE)
