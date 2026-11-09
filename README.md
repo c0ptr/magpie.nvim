@@ -1,4 +1,4 @@
-# word-translate.nvim
+# Magpie
 
 A dependency-free Neovim translation plugin for English words and sentences. It
 shows the source text, IPA pronunciation, and translation in a native floating
@@ -35,19 +35,19 @@ the official Google Cloud Translation Basic API instead, or use the key-backed
 
 ```lua
 {
-  "your-name/word-translate.nvim",
-  main = "word-translate",
+  "your-name/magpie.nvim",
+  main = "magpie",
   event = "VeryLazy",
   opts = {
     target_lang = "zh-CN", -- the default
   },
   keys = {
-    { "<leader>tw", "<cmd>WordTranslate<cr>", mode = { "n", "x" }, desc = "Translate word or selection" },
+    { "<leader>tw", "<cmd>Magpie<cr>", mode = { "n", "x" }, desc = "Translate word or selection" },
   },
 }
 ```
 
-`opts = {}` calls `require("word-translate").setup({})` automatically. If you
+`opts = {}` calls `require("magpie").setup({})` automatically. If you
 prefer the plugin's built-in mappings, omit `keys`; `<leader>tw` is installed in
 Normal and Visual mode by default.
 
@@ -59,8 +59,8 @@ Normal and Visual mode by default.
 | `<leader>tw` in Visual mode | Translate the selected word or sentence |
 | Hover a word with the mouse | Translate after a short delay |
 | Drag to make a Visual selection with the mouse | Translate on mouse release |
-| `:WordTranslate [text]` | Translate an explicit text, or the current word/selection |
-| `:WordTranslateClose` | Close the floating result window |
+| `:Magpie [text]` | Translate an explicit text, or the current word/selection |
+| `:MagpieClose` | Close the floating result window |
 
 Mouse hover needs `set mouse=a` in terminal Neovim. The plugin enables
 `mousemoveevent` only while hover translation is enabled; it receives events
@@ -69,7 +69,7 @@ through `vim.on_key`, so it does not replace your `<MouseMove>` mappings.
 ## Configuration
 
 ```lua
-require("word-translate").setup({
+require("magpie").setup({
   target_lang = "zh-CN",
   source_lang = "auto",
   provider = "google", -- "google" or "bing"
@@ -102,7 +102,7 @@ Azure Translator resource, then configure it with either environment variables
 or Lua options:
 
 ```lua
-require("word-translate").setup({
+require("magpie").setup({
   provider = "bing",
   bing = {
     api_key = vim.env.AZURE_TRANSLATOR_KEY,
@@ -121,7 +121,7 @@ When a Google Cloud Translation Basic API key is present, the Google adapter
 automatically switches from the public endpoint to Google's official v2 API:
 
 ```lua
-require("word-translate").setup({
+require("magpie").setup({
   provider = "google",
   google = {
     api_key = vim.env.GOOGLE_TRANSLATE_API_KEY,
@@ -135,7 +135,7 @@ Cloud Translation Basic in the Google Cloud project that owns the key.
 ### Disable automatic mouse actions
 
 ```lua
-require("word-translate").setup({
+require("magpie").setup({
   hover = { enabled = false },
   mouse_selection = { enabled = false },
 })
@@ -144,7 +144,7 @@ require("word-translate").setup({
 ## Public API
 
 ```lua
-local translate = require("word-translate")
+local translate = require("magpie")
 
 translate.translate("A clear mind", { target_lang = "zh-CN" })
 translate.translate_cursor()

@@ -1,19 +1,19 @@
-*word-translate.nvim*             Translate words and Visual selections in Neovim
+*magpie.nvim*             Translate words and Visual selections in Neovim
 
 ==============================================================================
-Contents                                                           *word-translate*
+Contents                                                           *magpie*
 
-  1. Setup ................................................ |word-translate-setup|
-  2. Commands ............................................. |word-translate-commands|
-  3. Mappings ............................................. |word-translate-mappings|
-  4. Configuration ........................................ |word-translate-config|
+  1. Setup ................................................ |magpie-setup|
+  2. Commands ............................................. |magpie-commands|
+  3. Mappings ............................................. |magpie-mappings|
+  4. Configuration ........................................ |magpie-config|
 
 ==============================================================================
-1. Setup                                                       *word-translate-setup*
+1. Setup                                                       *magpie-setup*
 
 Requires Neovim 0.10+, curl, and network access.  With lazy.nvim: >lua
   {
-    "your-name/word-translate.nvim",
+    "your-name/magpie.nvim",
     opts = {},
   }
 <
@@ -22,17 +22,17 @@ The plugin creates a non-focusable native floating window showing the source
 text, IPA pronunciation (for English words), and translation.
 
 ==============================================================================
-2. Commands                                                *word-translate-commands*
+2. Commands                                                *magpie-commands*
 
-                                                        *:WordTranslate*
-:WordTranslate [text]  Translate [text].  Without an argument, translate the
+                                                        *:Magpie*
+:Magpie [text]  Translate [text].  Without an argument, translate the
                        Visual selection or the word under the cursor.
 
-                                                   *:WordTranslateClose*
-:WordTranslateClose    Close the result floating window.
+                                                   *:MagpieClose*
+:MagpieClose    Close the result floating window.
 
 ==============================================================================
-3. Mappings                                                *word-translate-mappings*
+3. Mappings                                                *magpie-mappings*
 
                                                         *<leader>tw*
 <leader>tw in Normal mode translates the word under the cursor.  In Visual mode
@@ -45,10 +45,10 @@ enabled for this.  With `mouse_selection.enabled = true`, a Visual selection
 made by mouse drag is translated when the mouse button is released.
 
 ==============================================================================
-4. Configuration                                           *word-translate-config*
+4. Configuration                                           *magpie-config*
 
 >lua
-  require("word-translate").setup({
+  require("magpie").setup({
     target_lang = "zh-CN",
     source_lang = "auto",
     provider = "google", -- "google" or "bing"

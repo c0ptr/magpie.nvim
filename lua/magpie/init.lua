@@ -1,11 +1,11 @@
-local config_module = require("word-translate.config")
-local dictionary = require("word-translate.providers.dictionary")
-local bing = require("word-translate.providers.bing")
-local google = require("word-translate.providers.google")
-local selection = require("word-translate.selection")
-local ui = require("word-translate.ui")
-local util = require("word-translate.util")
-local deepseek = require("word-translate.providers.deepseek")
+local config_module = require("magpie.config")
+local dictionary = require("magpie.providers.dictionary")
+local bing = require("magpie.providers.bing")
+local google = require("magpie.providers.google")
+local selection = require("magpie.selection")
+local ui = require("magpie.ui")
+local util = require("magpie.util")
+local deepseek = require("magpie.providers.deepseek")
 
 
 local M = {
@@ -24,7 +24,7 @@ local providers = {
 
 local mouse_move = vim.api.nvim_replace_termcodes("<MouseMove>", true, false, true)
 local left_release = vim.api.nvim_replace_termcodes("<LeftRelease>", true, false, true)
-local input_namespace = vim.api.nvim_create_namespace("word-translate-input")
+local input_namespace = vim.api.nvim_create_namespace("magpie-input")
 
 local function anchor_from_mouse()
     local position = vim.fn.getmousepos()
@@ -132,7 +132,7 @@ local function configure_input_handler()
 end
 
 local function configure_highlights()
-    vim.api.nvim_set_hl(0, "WordTranslateLabel", { default = true, link = "Title" })
+    vim.api.nvim_set_hl(0, "MagpieLabel", { default = true, link = "Title" })
 end
 
 function M.setup(options)

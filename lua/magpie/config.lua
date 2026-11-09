@@ -78,10 +78,10 @@ local function validate(options)
     })
 
     if options.hover.delay_ms < 0 then
-        error("word-translate: hover.delay_ms must not be negative")
+        error("Magpie: hover.delay_ms must not be negative")
     end
     if options.cache.max_entries < 0 then
-        error("word-translate: cache.max_entries must not be negative")
+        error("Magpie: cache.max_entries must not be negative")
     end
 end
 

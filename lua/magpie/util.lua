@@ -1,7 +1,7 @@
 local M = {}
 
 function M.notify(message, level)
-    vim.notify(message, level or vim.log.levels.INFO, { title = "word-translate" })
+    vim.notify(message, level or vim.log.levels.INFO, { title = "Magpie" })
 end
 
 function M.trim(text)

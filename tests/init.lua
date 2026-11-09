@@ -1,7 +1,7 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.swapfile = false
-vim.cmd("runtime plugin/word-translate.lua")
-assert(vim.fn.exists(":WordTranslate") == 2, "WordTranslate command should be registered")
+vim.cmd("runtime plugin/magpie.lua")
+assert(vim.fn.exists(":Magpie") == 2, "Magpie command should be registered")
 
 local function assert_equal(expected, actual, message)
   if expected ~= actual then
@@ -9,7 +9,7 @@ local function assert_equal(expected, actual, message)
   end
 end
 
-local selection = require("word-translate.selection")
+local selection = require("magpie.selection")
 local buffer = vim.api.nvim_get_current_buf()
 vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "A hello-world example" })
 vim.api.nvim_win_set_cursor(0, { 1, 3 })
@@ -27,7 +27,7 @@ vim.system = function(_, _, callback)
   return {}
 end
 
-local google = require("word-translate.providers.google")
+local google = require("magpie.providers.google")
 local google_result
 google.translate("hello", {
   source_lang = "auto",
@@ -71,7 +71,7 @@ end), "Google Cloud callback timed out")
 assert_equal("你好", cloud_google_result.translation)
 assert_equal("en", cloud_google_result.detected_source_lang)
 
-local bing = require("word-translate.providers.bing")
+local bing = require("magpie.providers.bing")
 local bing_result
 vim.system = function(_, _, callback)
   callback({
@@ -95,8 +95,8 @@ end), "Bing callback timed out")
 assert_equal("你好", bing_result.translation)
 assert_equal("en", bing_result.detected_source_lang)
 
-local ui = require("word-translate.ui")
-local options = require("word-translate.config").build({
+local ui = require("magpie.ui")
+local options = require("magpie.config").build({
   hover = { enabled = false },
   mouse_selection = { enabled = false },
 })
@@ -111,7 +111,7 @@ assert(ui.is_open(), "result should update to a buffer-relative floating window"
 ui.close()
 assert(not ui.is_open(), "floating window should close")
 
-local translate = require("word-translate")
+local translate = require("magpie")
 vim.system = function(_, _, callback)
   callback({
     code = 0,
@@ -136,5 +136,5 @@ end), "Visual translation should open a result window")
 translate.close()
 
 vim.system = original_system
-print("word-translate tests passed")
+print("magpie tests passed")
 vim.cmd("quitall!")

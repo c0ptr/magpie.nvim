@@ -1,4 +1,4 @@
-local util = require("word-translate.util")
+local util = require("magpie.util")
 
 local M = {}
 

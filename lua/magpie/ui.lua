@@ -1,6 +1,6 @@
 local M = {}
 
-local namespace = vim.api.nvim_create_namespace("word-translate-ui")
+local namespace = vim.api.nvim_create_namespace("magpie-ui")
 local state = { buffer = nil, window = nil }
 
 local function valid_window()
@@ -67,7 +67,7 @@ local function render(lines, highlights, anchor, config)
     if not valid_buffer() then
         state.buffer = vim.api.nvim_create_buf(false, true)
         vim.bo[state.buffer].bufhidden = "wipe"
-        vim.bo[state.buffer].filetype = "word-translate"
+        vim.bo[state.buffer].filetype = "magpie"
     end
 
     vim.bo[state.buffer].modifiable = true
@@ -76,7 +76,7 @@ local function render(lines, highlights, anchor, config)
     for _, highlight in ipairs(highlights) do
         vim.api.nvim_buf_set_extmark(state.buffer, namespace, highlight.row, 0, {
             end_col = highlight.end_col,
-            hl_group = "WordTranslateLabel",
+            hl_group = "MagpieLabel",
         })
     end
     vim.bo[state.buffer].modifiable = false
