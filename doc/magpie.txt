@@ -14,10 +14,12 @@ Contents                                                           *magpie*
 Requires Neovim 0.10+, curl, and network access.  With lazy.nvim: >lua
   {
     "your-name/magpie.nvim",
+    main = "magpie",
     opts = {},
   }
 <
 The default target language is zh-CN and the default provider is Google.
+Available providers: Google, Bing (Azure), DeepSeek, and Youdao.
 The plugin creates a non-focusable native floating window showing the source
 text, IPA pronunciation (for English words), and translation.
 
@@ -51,7 +53,7 @@ made by mouse drag is translated when the mouse button is released.
   require("magpie").setup({
     target_lang = "zh-CN",
     source_lang = "auto",
-    provider = "google", -- "google" or "bing"
+    provider = "google", -- "google", "bing", "deepseek" or "youdao"
     hover = { enabled = true, delay_ms = 550 },
     mouse_selection = { enabled = true },
     keymaps = { normal = "<leader>tw", visual = "<leader>tw" },
@@ -64,5 +66,9 @@ Translation Basic v2 API, set `google.api_key` or $GOOGLE_TRANSLATE_API_KEY.
 Bing uses Azure Translator.  Set `provider = "bing"` and provide
 `bing.api_key` or $AZURE_TRANSLATOR_KEY.  $AZURE_TRANSLATOR_REGION is used when
 needed by the Azure resource.
+
+DeepSeek uses an LLM chat API.  Set `provider = "deepseek"` and provide
+`deepseek.api_key` or $DEEPSEEK_API_KEY.  Youdao needs `provider = "youdao"`
+with `youdao.app_key`/`youdao.app_secret` or $YOUDAO_APP_KEY/$YOUDAO_APP_SECRET.
 
 vim:tw=78:ts=8:noet:ft=help

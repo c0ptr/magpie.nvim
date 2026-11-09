@@ -49,6 +49,7 @@ function M.translate(text, options, callback)
 
     local args = {
         "curl", "-sS",
+        "--location",
         "--max-time", util.timeout_seconds(cfg.timeout_ms),
         "-H", "Content-Type: application/json",
         "-H", "Authorization: Bearer " .. cfg.api_key,

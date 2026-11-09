@@ -6,6 +6,7 @@ local selection = require("magpie.selection")
 local ui = require("magpie.ui")
 local util = require("magpie.util")
 local deepseek = require("magpie.providers.deepseek")
+local youdao = require("magpie.providers.youdao")
 
 
 local M = {
@@ -20,11 +21,13 @@ local providers = {
     google = google,
     bing = bing,
     deepseek = deepseek,
+    youdao = youdao,
 }
 
 local mouse_move = vim.api.nvim_replace_termcodes("<MouseMove>", true, false, true)
 local left_release = vim.api.nvim_replace_termcodes("<LeftRelease>", true, false, true)
 local input_namespace = vim.api.nvim_create_namespace("magpie-input")
+local saved_mousemoveevent
 
 local function anchor_from_mouse()
     local position = vim.fn.getmousepos()
@@ -38,7 +41,16 @@ local function anchor_from_mouse()
 end
 
 local function cache_key(text, options)
-    return table.concat({ options.provider, options.source_lang, options.target_lang, text }, "\31")
+    -- Include the provider settings (key, model, endpoint, ...) so switching
+    -- them never serves a stale cached result. The cache is in-memory only.
+    local provider_settings = vim.inspect(options[options.provider] or {})
+    return table.concat({
+        options.provider,
+        options.source_lang,
+        options.target_lang,
+        provider_settings,
+        text,
+    }, "\31")
 end
 
 local function remember(key, result)
@@ -120,8 +132,15 @@ end
 local function configure_input_handler()
     if M._config.hover.enabled then
         -- Required for <MouseMove> events. We use vim.on_key instead of a mapping,
-        -- so existing user mappings keep receiving the mouse event too.
+        -- so existing user mappings keep receiving the mouse event too. Remember
+        -- the previous value and restore it when hover is disabled.
+        if saved_mousemoveevent == nil then
+            saved_mousemoveevent = vim.o.mousemoveevent
+        end
         vim.o.mousemoveevent = true
+    elseif saved_mousemoveevent ~= nil then
+        vim.o.mousemoveevent = saved_mousemoveevent
+        saved_mousemoveevent = nil
     end
 
     if M._config.hover.enabled or M._config.mouse_selection.enabled then

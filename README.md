@@ -12,8 +12,8 @@ window.
 - Translate Visual selections, including selections made by dragging the mouse.
 - Native non-focusable floating window, positioned next to the cursor or mouse.
 - Displays **source text**, **IPA**, and **translation**.
-- Google Translate adapter works out of the box; Azure Translator (Bing) is also
-  available.
+- Google Translate adapter works out of the box; Azure Translator (Bing), DeepSeek,
+  and Youdao are also available.
 - Uses current Neovim APIs: `vim.system`, `vim.json`, `vim.on_key`,
   `nvim_open_win`, and `getregion`.
 - Keeps a small in-memory cache and never blocks the editor while requesting a
@@ -72,7 +72,7 @@ through `vim.on_key`, so it does not replace your `<MouseMove>` mappings.
 require("magpie").setup({
   target_lang = "zh-CN",
   source_lang = "auto",
-  provider = "google", -- "google" or "bing"
+  provider = "google", -- "google", "bing", "deepseek" or "youdao"
 
   keymaps = {
     normal = "<leader>tw",
@@ -132,6 +132,42 @@ require("magpie").setup({
 This uses `https://translation.googleapis.com/language/translate/v2`; enable
 Cloud Translation Basic in the Google Cloud project that owns the key.
 
+### DeepSeek
+
+DeepSeek is an LLM-backed provider that often renders whole sentences more
+naturally. It needs an API key:
+
+```lua
+require("magpie").setup({
+  provider = "deepseek",
+  deepseek = {
+    api_key = vim.env.DEEPSEEK_API_KEY,
+    -- model = "deepseek-flash", -- the default
+    -- Disable thinking mode for faster answers:
+    extra_body = { thinking = { type = "disabled" } },
+    -- proxy = "http://127.0.0.1:7890",
+  },
+})
+```
+
+Generated answers take a moment; the window shows a loading state until the
+response arrives.
+
+### Youdao
+
+Youdao requires free API credentials from
+[AI 开放平台](https://ai.youdao.com/):
+
+```lua
+require("magpie").setup({
+  provider = "youdao",
+  youdao = {
+    app_key = vim.env.YOUDAO_APP_KEY,
+    app_secret = vim.env.YOUDAO_APP_SECRET,
+  },
+})
+```
+
 ### Disable automatic mouse actions
 
 ```lua
@@ -166,6 +202,8 @@ Run the lightweight, network-free test suite with:
 ```sh
 nvim --headless --clean -u tests/init.lua
 ```
+
+Check the runtime with `:checkhealth magpie`.
 
 ## License
 

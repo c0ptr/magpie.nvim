@@ -95,6 +95,59 @@ end), "Bing callback timed out")
 assert_equal("你好", bing_result.translation)
 assert_equal("en", bing_result.detected_source_lang)
 
+local deepseek = require("magpie.providers.deepseek")
+local deepseek_result
+vim.system = function(_, _, callback)
+  callback({
+    code = 0,
+    stdout = '{"choices":[{"message":{"content":"你好"}}]}',
+    stderr = "",
+  })
+  return {}
+end
+deepseek.translate("hello", {
+  source_lang = "auto",
+  target_lang = "zh-CN",
+  deepseek = { api_key = "test-key", timeout_ms = 1000 },
+}, function(result, err)
+  assert_equal(nil, err)
+  deepseek_result = result
+end)
+assert(vim.wait(1000, function()
+  return deepseek_result ~= nil
+end), "DeepSeek callback timed out")
+assert_equal("你好", deepseek_result.translation)
+
+local youdao = require("magpie.providers.youdao")
+local youdao_result
+vim.system = function(_, _, callback)
+  callback({
+    code = 0,
+    stdout = '{"errorCode":"0","translation":["你好"],"l":"en2zh-CHS"}',
+    stderr = "",
+  })
+  return {}
+end
+youdao.translate("hello", {
+  source_lang = "auto",
+  target_lang = "zh-CN",
+  youdao = { endpoint = "https://example.test", app_key = "test-key", app_secret = "test-secret", timeout_ms = 1000 },
+}, function(result, err)
+  assert_equal(nil, err)
+  youdao_result = result
+end)
+assert(vim.wait(1000, function()
+  return youdao_result ~= nil
+end), "Youdao callback timed out")
+assert_equal("你好", youdao_result.translation)
+assert_equal("en", youdao_result.detected_source_lang)
+
+local config_module = require("magpie.config")
+local built, build_error = pcall(config_module.build, { hover = { delay_ms = -1 } })
+assert_equal(false, built, "negative hover.delay_ms should be rejected")
+assert(type(build_error) == "string" and build_error:match("hover.delay_ms") ~= nil, "error should name the invalid option")
+assert_equal("youdao", config_module.build({ provider = "youdao" }).provider, "youdao provider should be accepted")
+
 local ui = require("magpie.ui")
 local options = require("magpie.config").build({
   hover = { enabled = false },

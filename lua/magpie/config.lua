@@ -42,6 +42,14 @@ M.defaults = {
         timeout_ms = 10000,
     },
 
+    youdao = {
+        endpoint = "https://openapi.youdao.com/api",
+        app_key = nil,
+        app_secret = nil,
+        proxy = nil,
+        timeout_ms = 10000,
+    },
+
     dictionary = {
         enabled = true,
         endpoint = "https://api.dictionaryapi.dev/api/v2/entries/en",
@@ -68,9 +76,9 @@ local function validate(options)
         provider = {
             options.provider,
             function(value)
-                return value == 'deepseek' or value == "google" or value == "bing"
+                return value == "deepseek" or value == "google" or value == "bing" or value == "youdao"
             end,
-            "'google', 'deepseek' or 'bing'",
+            "'google', 'deepseek', 'bing' or 'youdao'",
         },
         hover_delay = { options.hover.delay_ms, "number" },
         cache_size = { options.cache.max_entries, "number" },
@@ -94,6 +102,8 @@ function M.build(options)
     merged.bing.region = merged.bing.region or vim.env.AZURE_TRANSLATOR_REGION
     merged.google.api_key = merged.google.api_key or vim.env.GOOGLE_TRANSLATE_API_KEY
     merged.deepseek.api_key = merged.deepseek.api_key or vim.env.DEEPSEEK_API_KEY
+    merged.youdao.app_key = merged.youdao.app_key or vim.env.YOUDAO_APP_KEY
+    merged.youdao.app_secret = merged.youdao.app_secret or vim.env.YOUDAO_APP_SECRET
     validate(merged)
     return merged
 end

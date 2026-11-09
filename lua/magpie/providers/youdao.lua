@@ -35,6 +35,7 @@ function M.translate(text, options, callback)
 
     local args = {
         "curl", "-sS",
+        "--location",
         "--max-time", util.timeout_seconds(cfg.timeout_ms),
     }
     if cfg.proxy then
