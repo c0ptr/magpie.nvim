@@ -184,6 +184,9 @@ assert(dict_module.size() >= 1000, "local dictionary should bundle at least 1000
 local hello_entry = dict_module.lookup("hello")
 assert(hello_entry and hello_entry.zh ~= "", "hello should be in the local dictionary")
 assert(hello_entry.ipa and hello_entry.ipa:match("^/") ~= nil, "hello should carry IPA")
+assert(dict_module.lookup("python") and dict_module.lookup("python").zh ~= "", "python should be in the local dictionary")
+assert(dict_module.lookup("git") and dict_module.lookup("git").zh ~= "", "git should be in the local dictionary")
+assert(dict_module.lookup("c++") and dict_module.lookup("c++").zh ~= "", "c++ should be in the local dictionary")
 
 -- Offline local-dictionary lookup must never touch the network.
 vim.system = function()

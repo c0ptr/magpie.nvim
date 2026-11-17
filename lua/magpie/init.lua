@@ -166,7 +166,7 @@ local function should_lookup_ipa(text, options)
 end
 
 local function local_lookup(text, options)
-    if not options.local_dictionary.enabled or not util.is_english_word(text) then
+    if not options.local_dictionary.enabled or text:find("%s") then
         return nil
     end
     if not options.target_lang:lower():match("^zh") then

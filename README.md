@@ -10,8 +10,8 @@ window.
 ## Features
 
 - Providers: ChatGPT, Copilot, Gemini, DeepSeek, and Youdao (all key-backed).
-- Bundled top-2000 English word list (IPA + Chinese glosses): common words
-  translate instantly, even offline.
+- Bundled top-2000 English words plus ~300 programming terms (IPA + Chinese
+  glosses): common and tech words translate instantly, even offline.
 - Lookup order: in-memory cache → disk cache → local dictionary → network.
 - Translate the word under the cursor, a Visual selection, or the word under
   the mouse pointer (hover).
@@ -288,7 +288,8 @@ require("magpie").setup({
 
 ## Local dictionary (offline)
 
-Magpie bundles the ~2000 most common English words (IPA + Chinese glosses) and
+Magpie bundles the ~2000 most common English words plus ~300 programming
+terms (languages, frameworks, tools, and concepts; IPA + Chinese glosses) and
 checks them before any network request. Word list from
 [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT).
 
