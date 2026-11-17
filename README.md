@@ -1,38 +1,33 @@
-# Magpie
+# Magpie.nvim · v0.1
 
 A dependency-free Neovim translation plugin for English words and sentences. It
 shows the source text, IPA pronunciation, and translation in a native floating
 window.
 
 ![Neovim](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
+![Version](https://img.shields.io/badge/version-0.1-blue)
 
 ## Features
 
-- Translate the word under the cursor or under the mouse pointer.
-- Translate Visual selections, including selections made by dragging the mouse.
+- Providers: ChatGPT, Copilot, Gemini, DeepSeek, and Youdao (all key-backed).
+- Bundled top-2000 English word list (IPA + Chinese glosses): common words
+  translate instantly, even offline.
+- Lookup order: in-memory cache → disk cache → local dictionary → network.
+- Translate the word under the cursor, a Visual selection, or the word under
+  the mouse pointer (hover).
 - Native non-focusable floating window, positioned next to the cursor or mouse.
-- Displays **source text**, **IPA**, and **translation**.
-- Google Translate adapter works out of the box; Azure Translator (Bing), DeepSeek,
-  and Youdao are also available.
-- Bundled top-2000 English word list: common words translate instantly, even offline.
-- Uses current Neovim APIs: `vim.system`, `vim.json`, `vim.on_key`,
-  `nvim_open_win`, and `getregion`.
-- Keeps a small in-memory cache and never blocks the editor while requesting a
-  translation.
+- Dictionary IPA lookup runs in parallel with the translation request.
+- In-flight requests are deduplicated; stale requests are cancelled.
+- Persistent disk cache (survives restarts) with normalized cache keys.
+- Never blocks the editor; all requests are asynchronous.
 
 ## Requirements
 
 - Neovim 0.10 or newer (tested on 0.12).
 - `curl` available on `$PATH`.
-- Internet access (only for text outside the bundled dictionary and cache).
+- An API key for the provider you use (see Providers below).
 
-The default Google provider uses Google's public web-translation endpoint. It
-does not require a key, but it is not a Google Cloud SLA-backed API, can change,
-and may temporarily rate-limit automated traffic. Set `google.api_key` to use
-the official Google Cloud Translation Basic API instead, or use the key-backed
-`bing` provider below.
-
-## lazy.nvim
+## Installation (lazy.nvim)
 
 ```lua
 {
@@ -48,8 +43,8 @@ the official Google Cloud Translation Basic API instead, or use the key-backed
 }
 ```
 
-`opts = {}` calls `require("magpie").setup({})` automatically. If you
-prefer the plugin's built-in mappings, omit `keys`; `<leader>tw` is installed in
+`opts = {}` calls `require("magpie").setup({})` automatically. If you prefer
+the plugin's built-in mappings, omit `keys`; `<leader>tw` is installed in
 Normal and Visual mode by default.
 
 ## Usage
@@ -73,7 +68,7 @@ through `vim.on_key`, so it does not replace your `<MouseMove>` mappings.
 require("magpie").setup({
   target_lang = "zh-CN",
   source_lang = "auto",
-  provider = "google", -- "google", "bing", "deepseek" or "youdao"
+  provider = "chatgpt", -- "chatgpt", "copilot", "gemini", "deepseek" or "youdao"
 
   keymaps = {
     normal = "<leader>tw",
@@ -85,12 +80,6 @@ require("magpie").setup({
     delay_ms = 550,
   },
 
-  cache = {
-    persist = true, -- keep translations across sessions
-    max_disk_entries = 500,
-  },
-  local_dictionary = { enabled = true },
-
   -- A Visual selection made by mouse drag is translated automatically.
   mouse_selection = { enabled = true },
 
@@ -99,50 +88,61 @@ require("magpie").setup({
     max_width = 72,
     winblend = 0,
   },
+
+  cache = {
+    persist = true,          -- keep translations across sessions
+    max_disk_entries = 500,  -- stored under stdpath("data")/magpie/
+  },
+  local_dictionary = { enabled = true },
 })
 ```
 
-### Azure Translator (Bing)
+## Providers
 
-Microsoft's Translator service is the supported Bing translation API. Create an
-Azure Translator resource, then configure it with either environment variables
-or Lua options:
+Every provider needs its own API key, set with an environment variable or in
+the provider options. Keys are only sent to the configured endpoint and are
+never written to a buffer, log, or cache.
+
+### ChatGPT
 
 ```lua
 require("magpie").setup({
-  provider = "bing",
-  bing = {
-    api_key = vim.env.AZURE_TRANSLATOR_KEY,
-    region = vim.env.AZURE_TRANSLATOR_REGION, -- required for multi-service resources
-    -- endpoint = "https://api.cognitive.microsofttranslator.com",
+  provider = "chatgpt",
+  chatgpt = {
+    api_key = vim.env.OPENAI_API_KEY,
+    -- model = "gpt-4o-mini", -- the default
   },
 })
 ```
 
-The key is sent only to the configured Azure endpoint and is never written to a
-buffer, log, or cache.
+### Copilot
 
-### Google Cloud Translation
-
-When a Google Cloud Translation Basic API key is present, the Google adapter
-automatically switches from the public endpoint to Google's official v2 API:
+Needs a GitHub token with Copilot access (an OAuth token or a fine-grained PAT
+with the Copilot Chat permission):
 
 ```lua
 require("magpie").setup({
-  provider = "google",
-  google = {
-    api_key = vim.env.GOOGLE_TRANSLATE_API_KEY,
+  provider = "copilot",
+  copilot = {
+    api_key = vim.env.GITHUB_TOKEN, -- or $COPILOT_API_KEY
+    -- model = "gpt-4o", -- the default
   },
 })
 ```
 
-This uses `https://translation.googleapis.com/language/translate/v2`; enable
-Cloud Translation Basic in the Google Cloud project that owns the key.
+### Gemini
+
+```lua
+require("magpie").setup({
+  provider = "gemini",
+  gemini = {
+    api_key = vim.env.GEMINI_API_KEY,
+    -- model = "gemini-2.5-flash", -- the default
+  },
+})
+```
 
 ### DeepSeek
-
-DeepSeek is an LLM-backed provider that often renders whole sentences more
-naturally. It needs an API key:
 
 ```lua
 require("magpie").setup({
@@ -162,7 +162,7 @@ response arrives.
 
 ### Youdao
 
-Youdao requires free API credentials from
+Requires free API credentials from
 [AI 开放平台](https://ai.youdao.com/):
 
 ```lua
@@ -175,25 +175,22 @@ require("magpie").setup({
 })
 ```
 
-### Local dictionary (offline)
+## Local dictionary (offline)
 
 Magpie bundles the ~2000 most common English words (IPA + Chinese glosses) and
 checks them before any network request. Word list from
 [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) (MIT).
 
-Lookup priority: in-memory cache → disk cache → local dictionary → network.
-With the default `target_lang = "zh-CN"`, covered words work fully offline;
-anything outside the bundle or cache still needs the network. Disable with
+With the default `target_lang = "zh-CN"`, covered words — and anything already
+in the disk cache — work fully offline. Disable with
 `local_dictionary = { enabled = false }`.
 
-### Disable automatic mouse actions
+## Notes on IPA
 
-```lua
-require("magpie").setup({
-  hover = { enabled = false },
-  mouse_selection = { enabled = false },
-})
-```
+Translation services do not reliably expose IPA. For a single English word the
+plugin looks up IPA from the free Dictionary API in parallel with translation;
+if it is unavailable, or the text is a sentence, the IPA field intentionally
+shows `—`.
 
 ## Public API
 
@@ -203,26 +200,22 @@ local translate = require("magpie")
 translate.translate("A clear mind", { target_lang = "zh-CN" })
 translate.translate_cursor()
 translate.translate_visual()
+translate.translate_from_command("hello")
 translate.close()
-translate.last_result -- 最近一次结果 { text, phonetic, translation }
+translate.last_result -- { text, phonetic, translation } of the last result
 ```
-
-## Notes on IPA
-
-Translation services do not reliably expose IPA. For a single English word,
-the plugin looks up IPA using the free Dictionary API after translation. If it
-is unavailable, or the selected text is a sentence, the IPA field intentionally
-shows `—`; translation still succeeds.
 
 ## Development
 
 Run the lightweight, network-free test suite with:
 
 ```sh
-nvim --headless --clean -u tests/init.lua
+nvim --headless --clean -i NONE -u tests/init.lua
 ```
 
-Check the runtime with `:checkhealth magpie`.
+Check the runtime with `:checkhealth magpie`. CI runs the tests on Neovim
+0.10–nightly. Format with [stylua](https://github.com/JohnnyMorganz/StyLua)
+(config included).
 
 ## License
 

@@ -1,7 +1,8 @@
 local config_module = require("magpie.config")
 local dictionary = require("magpie.providers.dictionary")
-local bing = require("magpie.providers.bing")
-local google = require("magpie.providers.google")
+local chatgpt = require("magpie.providers.chatgpt")
+local copilot = require("magpie.providers.copilot")
+local gemini = require("magpie.providers.gemini")
 local selection = require("magpie.selection")
 local ui = require("magpie.ui")
 local util = require("magpie.util")
@@ -20,8 +21,9 @@ local M = {
 }
 
 local providers = {
-    google = google,
-    bing = bing,
+    chatgpt = chatgpt,
+    copilot = copilot,
+    gemini = gemini,
     deepseek = deepseek,
     youdao = youdao,
 }

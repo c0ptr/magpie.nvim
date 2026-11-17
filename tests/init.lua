@@ -18,82 +18,67 @@ assert_equal("example", selection.word_at_position(0, 0, 15), "position word sho
 assert_equal(nil, selection.word_at_position(0, 0, 1), "spaces are not words")
 
 local original_system = vim.system
+
+local chatgpt = require("magpie.providers.chatgpt")
+local chatgpt_result
 vim.system = function(_, _, callback)
   callback({
     code = 0,
-    stdout = '[[["你好","hello",null,null,10]],null,"en"]',
+    stdout = '{"choices":[{"message":{"content":"你好"}}]}',
     stderr = "",
   })
   return {}
 end
-
-local google = require("magpie.providers.google")
-local google_result
-google.translate("hello", {
+chatgpt.translate("hello", {
   source_lang = "auto",
   target_lang = "zh-CN",
-  google = { endpoint = "https://example.test", timeout_ms = 1000 },
+  chatgpt = { endpoint = "https://example.test", model = "gpt-4o-mini", api_key = "test-key", timeout_ms = 1000 },
 }, function(result, err)
   assert_equal(nil, err)
-  google_result = result
+  chatgpt_result = result
 end)
 assert(vim.wait(1000, function()
-  return google_result ~= nil
-end), "Google callback timed out")
-assert_equal("你好", google_result.translation)
-assert_equal("en", google_result.detected_source_lang)
+  return chatgpt_result ~= nil
+end), "ChatGPT callback timed out")
+assert_equal("你好", chatgpt_result.translation)
 
-local cloud_google_result
-vim.system = function(_, _, callback)
-  callback({
-    code = 0,
-    stdout = '{"data":{"translations":[{"translatedText":"你好","detectedSourceLanguage":"en"}]}}',
-    stderr = "",
-  })
-  return {}
-end
-google.translate("hello", {
+local copilot = require("magpie.providers.copilot")
+local copilot_result
+copilot.translate("hello", {
   source_lang = "auto",
   target_lang = "zh-CN",
-  google = {
-    endpoint = "https://example.test/public",
-    cloud_endpoint = "https://example.test/cloud",
-    api_key = "test-key",
-    timeout_ms = 1000,
-  },
+  copilot = { endpoint = "https://example.test", model = "gpt-4o", api_key = "test-key", timeout_ms = 1000 },
 }, function(result, err)
   assert_equal(nil, err)
-  cloud_google_result = result
+  copilot_result = result
 end)
 assert(vim.wait(1000, function()
-  return cloud_google_result ~= nil
-end), "Google Cloud callback timed out")
-assert_equal("你好", cloud_google_result.translation)
-assert_equal("en", cloud_google_result.detected_source_lang)
+  return copilot_result ~= nil
+end), "Copilot callback timed out")
+assert_equal("你好", copilot_result.translation)
 
-local bing = require("magpie.providers.bing")
-local bing_result
+local gemini = require("magpie.providers.gemini")
+local gemini_result
 vim.system = function(_, _, callback)
   callback({
     code = 0,
-    stdout = '[{"detectedLanguage":{"language":"en"},"translations":[{"text":"你好","to":"zh-Hans"}]}]',
+    stdout = '{"candidates":[{"content":{"parts":[{"text":"你好"}]}}]}',
     stderr = "",
   })
   return {}
 end
-bing.translate("hello", {
+gemini.translate("hello", {
   source_lang = "auto",
-  target_lang = "zh-Hans",
-  bing = { endpoint = "https://example.test", api_key = "test-key", timeout_ms = 1000 },
+  target_lang = "zh-CN",
+  gemini = { endpoint = "https://example.test", model = "gemini-2.5-flash", api_key = "test-key", timeout_ms = 1000 },
 }, function(result, err)
   assert_equal(nil, err)
-  bing_result = result
+  gemini_result = result
 end)
 assert(vim.wait(1000, function()
-  return bing_result ~= nil
-end), "Bing callback timed out")
-assert_equal("你好", bing_result.translation)
-assert_equal("en", bing_result.detected_source_lang)
+  return gemini_result ~= nil
+end), "Gemini callback timed out")
+assert_equal("你好", gemini_result.translation)
 
 local deepseek = require("magpie.providers.deepseek")
 local deepseek_result
@@ -168,7 +153,7 @@ local translate = require("magpie")
 vim.system = function(_, _, callback)
   callback({
     code = 0,
-    stdout = '[[["你好","hello",null,null,10]],null,"en"]',
+    stdout = '{"choices":[{"message":{"content":"你好"}}]}',
     stderr = "",
   })
   return {}
@@ -179,7 +164,7 @@ translate.setup({
   dictionary = { enabled = false },
   local_dictionary = { enabled = false },
   cache = { persist = false },
-  google = { api_key = "" },
+  chatgpt = { api_key = "test-key" },
 })
 vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "hello world" })
 vim.cmd("normal! 0v4l")
@@ -230,6 +215,7 @@ translate.setup({
   dictionary = { enabled = false },
   local_dictionary = { enabled = false },
   cache = { persist = false },
+  chatgpt = { api_key = "test-key" },
 })
 ui.close()
 translate.translate("dedup target", {})
@@ -238,7 +224,7 @@ assert_equal(1, system_calls, "second identical trigger should join the in-fligh
 local previous_result = translate.last_result
 pending_system_callback({
   code = 0,
-  stdout = '[[["去重","dedup target",null,null,10]],null,"en"]',
+  stdout = '{"choices":[{"message":{"content":"去重"}}]}',
   stderr = "",
 })
 assert(vim.wait(1000, function()

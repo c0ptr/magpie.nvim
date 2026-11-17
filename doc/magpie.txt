@@ -19,8 +19,8 @@ outside the bundled dictionary and cache.  With lazy.nvim: >lua
     opts = {},
   }
 <
-The default target language is zh-CN and the default provider is Google.
-Available providers: Google, Bing (Azure), DeepSeek, and Youdao.
+The default target language is zh-CN and the default provider is ChatGPT.
+Available providers: ChatGPT, Copilot, Gemini, DeepSeek, and Youdao.
 The plugin creates a non-focusable native floating window showing the source
 text, IPA pronunciation (for English words), and translation.
 
@@ -54,7 +54,7 @@ made by mouse drag is translated when the mouse button is released.
   require("magpie").setup({
     target_lang = "zh-CN",
     source_lang = "auto",
-    provider = "google", -- "google", "bing", "deepseek" or "youdao"
+    provider = "chatgpt", -- "chatgpt", "copilot", "gemini", "deepseek" or "youdao"
     hover = { enabled = true, delay_ms = 550 },
     mouse_selection = { enabled = true },
     cache = { persist = true, max_disk_entries = 500 },
@@ -63,12 +63,11 @@ made by mouse drag is translated when the mouse button is released.
   })
 <
 
-Google uses its public web endpoint by default.  For the official Google Cloud
-Translation Basic v2 API, set `google.api_key` or $GOOGLE_TRANSLATE_API_KEY.
-
-Bing uses Azure Translator.  Set `provider = "bing"` and provide
-`bing.api_key` or $AZURE_TRANSLATOR_KEY.  $AZURE_TRANSLATOR_REGION is used when
-needed by the Azure resource.
+ChatGPT uses OpenAI chat completions.  Set `provider = "chatgpt"` and provide
+`chatgpt.api_key` or $OPENAI_API_KEY.  Copilot uses the GitHub Copilot chat API;
+set `provider = "copilot"` with `copilot.api_key` or $GITHUB_TOKEN (a token with
+Copilot Chat permission).  Gemini uses the Gemini generateContent API; set
+`provider = "gemini"` with `gemini.api_key` or $GEMINI_API_KEY.
 
 DeepSeek uses an LLM chat API.  Set `provider = "deepseek"` and provide
 `deepseek.api_key` or $DEEPSEEK_API_KEY.  Youdao needs `provider = "youdao"`

@@ -3,7 +3,7 @@ local M = {}
 M.defaults = {
     source_lang = "auto",
     target_lang = "zh-CN",
-    provider = "google",
+    provider = "chatgpt",
 
     keymaps = {
         normal = "<leader>tw",
@@ -28,18 +28,35 @@ M.defaults = {
         proxy = nil,
         timeout_ms = 30000,
     },
-    google = {
-        endpoint = "https://translate.googleapis.com/translate_a/single",
-        cloud_endpoint = "https://translation.googleapis.com/language/translate/v2",
+    chatgpt = {
+        endpoint = "https://api.openai.com/v1/chat/completions",
         api_key = nil,
-        timeout_ms = 10000,
+        model = "gpt-4o-mini",
+        temperature = 0.2,
+        extra_body = nil,
+        proxy = nil,
+        timeout_ms = 30000,
+        env = "OPENAI_API_KEY",
     },
 
-    bing = {
-        endpoint = "https://api.cognitive.microsofttranslator.com",
+    copilot = {
+        endpoint = "https://api.githubcopilot.com/chat/completions",
         api_key = nil,
-        region = nil,
-        timeout_ms = 10000,
+        model = "gpt-4o",
+        temperature = 0.2,
+        extra_body = nil,
+        proxy = nil,
+        timeout_ms = 30000,
+        env = "GITHUB_TOKEN",
+    },
+
+    gemini = {
+        endpoint = "https://generativelanguage.googleapis.com/v1beta/models",
+        api_key = nil,
+        model = "gemini-2.5-flash",
+        temperature = 0.2,
+        proxy = nil,
+        timeout_ms = 30000,
     },
 
     youdao = {
@@ -83,9 +100,9 @@ local function validate(options)
         provider = {
             options.provider,
             function(value)
-                return value == "deepseek" or value == "google" or value == "bing" or value == "youdao"
+                return value == "chatgpt" or value == "copilot" or value == "gemini" or value == "deepseek" or value == "youdao"
             end,
-            "'google', 'deepseek', 'bing' or 'youdao'",
+            "'chatgpt', 'copilot', 'gemini', 'deepseek' or 'youdao'",
         },
         hover_delay = { options.hover.delay_ms, "number" },
         cache_size = { options.cache.max_entries, "number" },
@@ -111,9 +128,9 @@ function M.build(options)
 
     -- Keep secrets out of the default table and make environment configuration
     -- convenient for lazy.nvim users.
-    merged.bing.api_key = merged.bing.api_key or vim.env.AZURE_TRANSLATOR_KEY
-    merged.bing.region = merged.bing.region or vim.env.AZURE_TRANSLATOR_REGION
-    merged.google.api_key = merged.google.api_key or vim.env.GOOGLE_TRANSLATE_API_KEY
+    merged.chatgpt.api_key = merged.chatgpt.api_key or vim.env.OPENAI_API_KEY or vim.env.CHATGPT_API_KEY
+    merged.copilot.api_key = merged.copilot.api_key or vim.env.GITHUB_TOKEN or vim.env.COPILOT_API_KEY
+    merged.gemini.api_key = merged.gemini.api_key or vim.env.GEMINI_API_KEY
     merged.deepseek.api_key = merged.deepseek.api_key or vim.env.DEEPSEEK_API_KEY
     merged.youdao.app_key = merged.youdao.app_key or vim.env.YOUDAO_APP_KEY
     merged.youdao.app_secret = merged.youdao.app_secret or vim.env.YOUDAO_APP_SECRET
