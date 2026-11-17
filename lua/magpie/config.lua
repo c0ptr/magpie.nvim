@@ -5,6 +5,10 @@ M.defaults = {
     target_lang = "zh-CN",
     provider = "chatgpt",
 
+    stream = {
+        enabled = true,
+    },
+
     keymaps = {
         normal = "<leader>tw",
         visual = "<leader>tw",
@@ -27,6 +31,7 @@ M.defaults = {
         extra_body = nil,
         proxy = nil,
         timeout_ms = 30000,
+        env = "DEEPSEEK_API_KEY",
     },
     chatgpt = {
         endpoint = "https://api.openai.com/v1/chat/completions",
@@ -75,6 +80,7 @@ M.defaults = {
 
     local_dictionary = {
         enabled = true,
+        user_file = nil,
     },
 
     cache = {
@@ -109,6 +115,8 @@ local function validate(options)
         cache_disk_size = { options.cache.max_disk_entries, "number" },
         cache_persist = { options.cache.persist, "boolean" },
         local_dictionary_enabled = { options.local_dictionary.enabled, "boolean" },
+        local_dictionary_user_file = { options.local_dictionary.user_file, "string" },
+        stream_enabled = { options.stream.enabled, "boolean" },
         ui_max_width = { options.ui.max_width, "number" },
     })
 
@@ -136,6 +144,9 @@ function M.build(options)
     merged.youdao.app_secret = merged.youdao.app_secret or vim.env.YOUDAO_APP_SECRET
     if merged.cache.dir == nil or merged.cache.dir == "" then
         merged.cache.dir = vim.fn.stdpath("data") .. "/magpie"
+    end
+    if merged.local_dictionary.user_file == nil or merged.local_dictionary.user_file == "" then
+        merged.local_dictionary.user_file = vim.fn.stdpath("config") .. "/magpie-dict.txt"
     end
     validate(merged)
     return merged

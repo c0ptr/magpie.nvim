@@ -60,6 +60,36 @@ function M.run_curl(args, callback)
     end)
 end
 
+-- Stream curl output line by line. on_chunk receives text chunks; callback
+-- fires once at completion with (nil, nil) on success or (nil, error).
+function M.run_curl_stream(args, on_chunk, callback)
+    if vim.fn.executable("curl") ~= 1 then
+        callback(nil, "`curl` is required. Install curl and make it available on $PATH.")
+        return nil
+    end
+
+    return vim.system(args, {
+        text = true,
+        stdout = function(_, chunk)
+            if type(chunk) == "string" and chunk ~= "" then
+                vim.schedule(function()
+                    on_chunk(chunk)
+                end)
+            end
+        end,
+        stderr = true,
+    }, function(result)
+        vim.schedule(function()
+            if result.code ~= 0 then
+                local detail = M.trim(result.stderr or "")
+                callback(nil, detail ~= "" and detail or ("curl exited with code " .. result.code))
+                return
+            end
+            callback(nil, nil)
+        end)
+    end)
+end
+
 function M.timeout_seconds(timeout_ms)
     return string.format("%.3f", math.max(1, timeout_ms) / 1000)
 end

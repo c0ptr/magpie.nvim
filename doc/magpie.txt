@@ -58,7 +58,8 @@ made by mouse drag is translated when the mouse button is released.
     hover = { enabled = true, delay_ms = 550 },
     mouse_selection = { enabled = true },
     cache = { persist = true, max_disk_entries = 500 },
-    local_dictionary = { enabled = true },
+    local_dictionary = { enabled = true, user_file = nil },
+    stream = { enabled = true },
     keymaps = { normal = "<leader>tw", visual = "<leader>tw" },
   })
 <

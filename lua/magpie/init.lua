@@ -265,6 +265,9 @@ function M.setup(options)
     configure_highlights()
     apply_keymaps()
     configure_input_handler()
+    if M._config.local_dictionary.enabled and M._config.local_dictionary.user_file then
+        dict.load_user(M._config.local_dictionary.user_file)
+    end
     if M._config.cache.persist then
         vim.api.nvim_create_autocmd("VimLeavePre", {
             once = true,
@@ -423,7 +426,29 @@ function M.translate(text, context)
     if ipa_pending then
         pending.handle_ipa = dictionary.lookup(text, options, on_ipa)
     end
-    pending.handle = provider.translate(text, options, on_provider)
+
+    if options.stream.enabled and provider.translate_stream then
+        local streamed = ""
+        local last_ui = 0
+        pending.handle = provider.translate_stream(text, options, function(delta)
+            if request_id ~= M._request_id then
+                return
+            end
+            streamed = streamed .. delta
+            local now = math.floor(vim.uv.hrtime() / 1000000)
+            if now - last_ui >= 80 then
+                last_ui = now
+                ui.show_result({
+                    text = text,
+                    phonetic = "查询中…",
+                    translation = streamed,
+                    detected_source_lang = options.source_lang,
+                }, context.anchor, options)
+            end
+        end, on_provider)
+    else
+        pending.handle = provider.translate(text, options, on_provider)
+    end
 end
 
 function M.translate_cursor()

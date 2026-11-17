@@ -1,11 +1,11 @@
-# Magpie.nvim · v0.1
+# Magpie.nvim · v0.2
 
 A dependency-free Neovim translation plugin for English words and sentences. It
 shows the source text, IPA pronunciation, and translation in a native floating
 window.
 
 ![Neovim](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
-![Version](https://img.shields.io/badge/version-0.1-blue)
+![Version](https://img.shields.io/badge/version-0.2-blue)
 
 ## Features
 
@@ -18,6 +18,8 @@ window.
 - Native non-focusable floating window, positioned next to the cursor or mouse.
 - Dictionary IPA lookup runs in parallel with the translation request.
 - In-flight requests are deduplicated; stale requests are cancelled.
+- Streaming rendering: LLM translations appear word by word.
+- User dictionary: add your own entries via a config file.
 - Persistent disk cache (survives restarts) with normalized cache keys.
 - Never blocks the editor; all requests are asynchronous.
 
@@ -119,7 +121,13 @@ require("magpie").setup({
   },
 
   -- Bundled top-2000 word dictionary (offline, used for Chinese targets)
-  local_dictionary = { enabled = true },
+  local_dictionary = {
+    enabled = true,
+    user_file = nil, -- default: ~/.config/nvim/magpie-dict.txt
+  },
+
+  -- Stream LLM output into the window word by word
+  stream = { enabled = true },
 
   -- IPA lookup for single English words (free Dictionary API)
   dictionary = {
@@ -296,6 +304,20 @@ checks them before any network request. Word list from
 With the default `target_lang = "zh-CN"`, covered words — and anything already
 in the disk cache — work fully offline. Disable with
 `local_dictionary = { enabled = false }`.
+
+### User dictionary
+
+Create `~/.config/nvim/magpie-dict.txt` (or set `local_dictionary.user_file`)
+with one entry per line; entries override the bundled dictionary and work
+offline:
+
+```txt
+kubernetes	Kubernetes（容器编排平台）
+alias	别名
+```
+
+The word may contain `+ # . -`. Restart Neovim (or run
+`require("magpie").setup()` again) to reload the file.
 
 ## Notes on IPA
 

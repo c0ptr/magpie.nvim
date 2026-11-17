@@ -164,6 +164,7 @@ translate.setup({
   dictionary = { enabled = false },
   local_dictionary = { enabled = false },
   cache = { persist = false },
+  stream = { enabled = false },
   chatgpt = { api_key = "test-key" },
 })
 vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "hello world" })
@@ -203,6 +204,19 @@ translate.translate("hello", {})
 assert(ui.is_open(), "local dictionary hit should open a result window")
 assert(translate.last_result and translate.last_result.translation ~= "" and translate.last_result.translation ~= "hello", "local hit should fill a translation")
 
+-- User dictionary entries override the bundled dictionary.
+local user_file = vim.fn.tempname()
+vim.fn.writefile({ "neovimtest\t测试词条" }, user_file)
+translate.setup({
+  hover = { enabled = false },
+  mouse_selection = { enabled = false },
+  local_dictionary = { enabled = true, user_file = user_file },
+  cache = { persist = false },
+})
+ui.close()
+translate.translate("neovimtest", {})
+assert(translate.last_result and translate.last_result.translation == "测试词条", "user dictionary entries should be honored")
+
 -- In-flight dedup: the same text translated twice while the first request
 -- is pending must spawn only one process.
 local system_calls = 0
@@ -218,6 +232,7 @@ translate.setup({
   dictionary = { enabled = false },
   local_dictionary = { enabled = false },
   cache = { persist = false },
+  stream = { enabled = false },
   chatgpt = { api_key = "test-key" },
 })
 ui.close()
@@ -244,6 +259,30 @@ end
 translate.translate("first target", {})
 translate.translate("second target", {})
 assert_equal(1, killed, "the stale in-flight request should be killed")
+
+-- Streaming: LLM providers emit chunks that are rendered progressively.
+vim.system = function(_, opts, cb)
+  opts.stdout(nil, 'data: {"choices":[{"delta":{"content":"你"}}]}\n\n')
+  opts.stdout(nil, 'data: {"choices":[{"delta":{"content":"好"}}]}\n\n')
+  opts.stdout(nil, "data: [DONE]\n\n")
+  cb({ code = 0, stderr = "" })
+  return { kill = function() end }
+end
+translate.setup({
+  hover = { enabled = false },
+  mouse_selection = { enabled = false },
+  dictionary = { enabled = false },
+  local_dictionary = { enabled = false },
+  cache = { persist = false },
+  stream = { enabled = true },
+  chatgpt = { api_key = "test-key" },
+})
+ui.close()
+translate.last_result = nil
+translate.translate("stream target", {})
+assert(vim.wait(1000, function()
+  return translate.last_result ~= nil and translate.last_result.translation == "你好"
+end), "streaming request should deliver the accumulated translation")
 
 print("magpie tests passed")
 vim.cmd("quitall!")
