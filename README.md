@@ -62,40 +62,151 @@ Mouse hover needs `set mouse=a` in terminal Neovim. The plugin enables
 `mousemoveevent` only while hover translation is enabled; it receives events
 through `vim.on_key`, so it does not replace your `<MouseMove>` mappings.
 
+## Getting started
+
+1. Install the plugin (see above).
+2. Get an API key for the provider you want to use.
+3. Export it as an environment variable (e.g. `export OPENAI_API_KEY=sk-...`),
+   or set it directly in your Neovim config (see below).
+4. Done. Hover a word, press `<leader>tw`, or run `:Magpie hello world`.
+   Words in the bundled dictionary translate even without any key.
+
 ## Configuration
+
+Call `require("magpie").setup()` with these options; every key is optional
+and falls back to its default. Provider secrets can come from environment
+variables instead of the config.
 
 ```lua
 require("magpie").setup({
-  target_lang = "zh-CN",
-  source_lang = "auto",
-  provider = "chatgpt", -- "chatgpt", "copilot", "gemini", "deepseek" or "youdao"
+  -- Languages
+  source_lang = "auto",   -- "auto" or a language code, e.g. "en", "ja"
+  target_lang = "zh-CN",  -- language code, e.g. "zh-CN", "en", "ja"
 
+  -- Provider: "chatgpt", "copilot", "gemini", "deepseek" or "youdao"
+  provider = "chatgpt",
+
+  -- Keymaps installed by the plugin (set one to false to disable it)
   keymaps = {
-    normal = "<leader>tw",
-    visual = "<leader>tw",
+    normal = "<leader>tw",  -- Normal mode: word under cursor
+    visual = "<leader>tw",  -- Visual mode: selection
   },
 
+  -- Hover: translate the word under the mouse after it stays still
   hover = {
     enabled = true,
-    delay_ms = 550,
+    delay_ms = 550,  -- how long the mouse must stay still (ms)
   },
 
-  -- A Visual selection made by mouse drag is translated automatically.
+  -- Translate a Visual selection made by dragging the mouse, on release
   mouse_selection = { enabled = true },
 
+  -- Result window
   ui = {
-    border = "rounded",
+    border = "rounded",  -- "none", "single", "double", "rounded", "solid", "shadow"
     max_width = 72,
+    min_width = 30,
     winblend = 0,
+    title = " 翻译 ",
   },
 
+  -- Cache: in-memory + optional disk persistence
   cache = {
-    persist = true,          -- keep translations across sessions
-    max_disk_entries = 500,  -- stored under stdpath("data")/magpie/
+    max_entries = 100,       -- in-memory entries
+    persist = true,          -- save to disk across sessions
+    max_disk_entries = 500,  -- disk entries (oldest evicted first)
+    dir = nil,               -- disk location; default stdpath("data")/magpie
   },
+
+  -- Bundled top-2000 word dictionary (offline, used for Chinese targets)
   local_dictionary = { enabled = true },
+
+  -- IPA lookup for single English words (free Dictionary API)
+  dictionary = {
+    enabled = true,
+    endpoint = "https://api.dictionaryapi.dev/api/v2/entries/en",
+    timeout_ms = 5000,
+  },
+
+  -- Provider settings (only the one named by `provider` is used)
+  chatgpt = {
+    api_key = vim.env.OPENAI_API_KEY,  -- or $OPENAI_API_KEY / $CHATGPT_API_KEY
+    model = "gpt-4o-mini",
+    temperature = 0.2,
+    extra_body = nil,  -- merged into the request body, e.g. { top_p = 1 }
+    proxy = nil,       -- e.g. "http://127.0.0.1:7890"
+    endpoint = "https://api.openai.com/v1/chat/completions",
+    timeout_ms = 30000,
+  },
+
+  copilot = {
+    api_key = vim.env.GITHUB_TOKEN,  -- or $GITHUB_TOKEN / $COPILOT_API_KEY
+    model = "gpt-4o",
+    temperature = 0.2,
+    extra_body = nil,
+    proxy = nil,
+    endpoint = "https://api.githubcopilot.com/chat/completions",
+    timeout_ms = 30000,
+  },
+
+  gemini = {
+    api_key = vim.env.GEMINI_API_KEY,  -- or $GEMINI_API_KEY
+    model = "gemini-2.5-flash",
+    temperature = 0.2,
+    proxy = nil,
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/models",
+    timeout_ms = 30000,
+  },
+
+  deepseek = {
+    api_key = vim.env.DEEPSEEK_API_KEY,  -- or $DEEPSEEK_API_KEY
+    model = "deepseek-flash",
+    temperature = 0.2,
+    extra_body = nil,  -- e.g. { thinking = { type = "disabled" } } to speed up
+    proxy = nil,
+    endpoint = "https://api.deepseek.com/chat/completions",
+    timeout_ms = 30000,
+  },
+
+  youdao = {
+    app_key = vim.env.YOUDAO_APP_KEY,       -- or $YOUDAO_APP_KEY
+    app_secret = vim.env.YOUDAO_APP_SECRET, -- or $YOUDAO_APP_SECRET
+    proxy = nil,
+    endpoint = "https://openapi.youdao.com/api",
+    timeout_ms = 10000,
+  },
 })
 ```
+
+### Examples
+
+Minimal setup (ChatGPT via environment variable, everything else default):
+
+```lua
+require("magpie").setup({}) -- uses $OPENAI_API_KEY
+```
+
+Copilot, key in the config, hover and mouse features off:
+
+```lua
+require("magpie").setup({
+  provider = "copilot",
+  copilot = { api_key = vim.env.GITHUB_TOKEN, model = "gpt-4o" },
+  hover = { enabled = false },
+  mouse_selection = { enabled = false },
+})
+```
+
+Offline only (bundled dictionary + disk cache; no IPA network lookup):
+
+```lua
+require("magpie").setup({
+  local_dictionary = { enabled = true },
+  dictionary = { enabled = false },
+})
+```
+
+Words outside the dictionary then show an error instead of translating.
 
 ## Providers
 
