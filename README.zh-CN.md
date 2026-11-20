@@ -6,8 +6,6 @@
 
 v0.3 新增**代码注释翻译**：在写注释时，可将中文注释自动翻译为英文，也可以按需手动翻译；反向翻译同样受支持。若安装了相应的 Tree-sitter 解析器，插件会通过语法节点识别注释；否则使用 `commentstring` 和内置注释标记回退机制。
 
-> **README 作者说明：** 原始 README 由 GitHub Copilot 编写。
-
 ![Neovim](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.3-blue)
 

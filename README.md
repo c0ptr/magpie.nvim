@@ -11,8 +11,6 @@ English automatically while you write, or on demand in manual mode. Detection
 works across programming languages through tree-sitter when a parser is
 available, with a `commentstring` fallback for every filetype Neovim knows.
 
-> **README authorship:** The original README was written by GitHub Copilot.
-
 ![Neovim](https://img.shields.io/badge/Neovim-%3E%3D0.10-57A143?logo=neovim&logoColor=white)
 ![Version](https://img.shields.io/badge/version-0.3-blue)
 
