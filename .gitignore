@@ -1,3 +1,6 @@
 
 # local copy kept outside the repo history
 未命名/
+
+# nvim's fallback log file when stdpath("state") is not writable
+nvim.log

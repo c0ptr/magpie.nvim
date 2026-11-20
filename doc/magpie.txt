@@ -1,4 +1,4 @@
-*magpie.nvim*             Translate words and Visual selections in Neovim
+*magpie.nvim*             Translate words, selections and code comments in Neovim
 
 ==============================================================================
 Contents                                                           *magpie*
@@ -7,6 +7,9 @@ Contents                                                           *magpie*
   2. Commands ............................................. |magpie-commands|
   3. Mappings ............................................. |magpie-mappings|
   4. Configuration ........................................ |magpie-config|
+  5. Comment translation .................................. |magpie-comments|
+  6. Providers ............................................ |magpie-providers|
+  7. API .................................................. |magpie-api|
 
 ==============================================================================
 1. Setup                                                       *magpie-setup*
@@ -24,6 +27,10 @@ Available providers: ChatGPT, Copilot, Gemini, DeepSeek, and Youdao.
 The plugin creates a non-focusable native floating window showing the source
 text, IPA pronunciation (for English words), and translation.
 
+Since v0.3 it also translates code comments.  By default comment translation is
+in manual mode; set `comment_translation.mode = "auto"` to translate Chinese
+comments when leaving Insert mode.  See |magpie-comments|.
+
 ==============================================================================
 2. Commands                                                *magpie-commands*
 
@@ -34,6 +41,26 @@ text, IPA pronunciation (for English words), and translation.
                                                    *:MagpieClose*
 :MagpieClose    Close the result floating window.
 
+                                                  *:MagpieComment*
+:MagpieComment  Translate the code comment under the cursor.  In Visual mode,
+                or with an explicit range such as `:4,9MagpieComment`, all
+                comments overlapping the range are translated.
+
+                                                 *:MagpieComments*
+:MagpieComments Translate every translatable comment in the buffer.  Comments
+                are batched into a small number of provider requests.
+
+                                              *:MagpieCommentMode*
+:MagpieCommentMode [mode]
+                Show the current comment translation mode.  With an argument,
+                set it to "auto", "manual", or "toggle"; "off" disables the
+                feature for the current session.
+
+                                            *:MagpieCommentsCheck*
+:MagpieCommentsCheck
+                List translatable comments in the quickfix list.  Comments that
+                match a skip pattern are marked with a reason.
+
 ==============================================================================
 3. Mappings                                                *magpie-mappings*
 
@@ -41,6 +68,15 @@ text, IPA pronunciation (for English words), and translation.
 <leader>tw in Normal mode translates the word under the cursor.  In Visual mode
 it translates the selected word or sentence.  Set `keymaps.normal = false` or
 `keymaps.visual = false` to omit either built-in mapping.
+
+                                                        *<leader>tc*
+<leader>tc translates the comment under the cursor in Normal mode and the
+comments in the selection in Visual mode.  Set `keymaps.comment = false` to
+disable it.
+
+                                                        *<leader>tC*
+<leader>tC translates every translatable comment in the buffer.  Set
+`keymaps.comments = false` to disable it.
 
 With `hover.enabled = true` (the default), hovering a word with the mouse
 translates it after `hover.delay_ms`.  Neovim's 'mousemoveevent' option is
@@ -60,9 +96,97 @@ made by mouse drag is translated when the mouse button is released.
     cache = { persist = true, max_disk_entries = 500 },
     local_dictionary = { enabled = true, user_file = nil },
     stream = { enabled = true },
-    keymaps = { normal = "<leader>tw", visual = "<leader>tw" },
+    keymaps = {
+      normal = "<leader>tw",
+      visual = "<leader>tw",
+      comment = "<leader>tc",
+      comments = "<leader>tC",
+    },
+    comment_translation = {
+      enabled = true,
+      mode = "manual",      -- "manual" or "auto"
+      target_lang = "en",   -- Chinese comments -> English
+      source_lang = "auto",
+      filetypes = nil,
+      exclude_filetypes = {
+        "checkhealth", "diff", "gitcommit", "gitrebase", "help",
+        "lspinfo", "man", "markdown", "neo-tree", "notify", "noice",
+        "NvimTree", "prompt", "qf", "snacks_dashboard", "text",
+      },
+      use_treesitter = true,
+      debounce_ms = 500,
+      max_batch = 6,
+      max_chars = 3000,
+      notify = "on_error",
+    },
   })
 <
+`target_lang` for ordinary word translation defaults to "zh-CN"; comment
+translation has its own `comment_translation.target_lang`, which defaults to
+"en".  Set it to "zh-CN" to translate English comments into Chinese.
+
+A bundled list of the ~2000 most common English words is checked before any
+network request when `local_dictionary.enabled = true` (default) and
+`target_lang` starts with "zh".  With `cache.persist = true` (default),
+covered and previously translated text works offline.  Cache files live in
+|stdpath()| "data"/magpie/.
+
+==============================================================================
+5. Comment translation                                     *magpie-comments*
+
+v0.3 translates the natural-language text of code comments while leaving the
+code and comment syntax untouched.  It supports:
+
+  - line comments: `//`, `#`, `--`, `;`, `%`, `"`, `'`, `rem`, `!`, `*`, ...
+  - block comments: `/* */`, `<!-- -->`, `{- -}`, `(* *)`, `--[[ ]]`,
+    `#[ ]#`, `#| |#`, `%{ %}`, `<# #>`, `=begin/=end`, and more
+  - inline trailing comments and multi-line line-comment blocks
+  - every filetype for which Neovim exposes 'commentstring'
+
+Tree-sitter is used when a parser is installed; this improves detection for
+grammar-specific nodes and injected languages.  Set
+`comment_translation.use_treesitter = false` to always use the built-in
+scanner.  Code around the comment is never rewritten; with a parser, strings
+and docstrings are excluded reliably.
+
+Without a parser the fallback scanner is syntax-light: it understands quoted
+strings, but comment-like text inside multi-line strings (Python triple quotes,
+Lua long brackets, shell heredocs) can be misdetected.  Install the language
+parser, or restrict `filetypes` when that matters.
+
+Modes:
+
+  "manual"  Only translate on |:MagpieComment|, |:MagpieComments|, or the
+            mappings above.
+  "auto"    Also translate the comment blocks touched during the current
+            Insert session when you leave Insert mode (including the comment
+            under the cursor).  This catches a comment written before you
+            moved on to code on the next line.  The request is debounced by
+            `debounce_ms`; if the buffer changes while the request is in
+            flight, the translation is discarded instead of corrupting shifted
+            text.  Auto mode never scans and rewrites the whole buffer.
+            Translation is asynchronous: if you save immediately after leaving
+            Insert mode, wait for the translation and write again.  Magpie
+            warns when a translation lands right after a write.
+
+Multiple comments are sent in one provider request when using
+|:MagpieComments|.  If the provider response cannot be split reliably, Magpie
+falls back to individual requests.  When a translation has a different number
+of lines than the source comment, the comment is collapsed to one line instead
+of breaking the surrounding code.
+
+Comments matching `comment_translation.skip_patterns` are skipped, including
+tool directives such as `eslint-disable`, `@ts-ignore`, `noqa`, `nolint`,
+`type: ignore`, `go:generate`, `SPDX-License-Identifier`, and Vim modelines.
+Comments longer than `max_chars` are skipped, and `exclude_filetypes` prevents
+Magpie from touching documentation or non-code buffers.
+
+For a statusline: >lua
+  require("magpie").comment_mode()  -- "auto", "manual" or "off"
+<
+
+==============================================================================
+6. Providers                                             *magpie-providers*
 
 ChatGPT uses OpenAI chat completions.  Set `provider = "chatgpt"` and provide
 `chatgpt.api_key` or $OPENAI_API_KEY.  Copilot uses the GitHub Copilot chat API;
@@ -74,10 +198,25 @@ DeepSeek uses an LLM chat API.  Set `provider = "deepseek"` and provide
 `deepseek.api_key` or $DEEPSEEK_API_KEY.  Youdao needs `provider = "youdao"`
 with `youdao.app_key`/`youdao.app_secret` or $YOUDAO_APP_KEY/$YOUDAO_APP_SECRET.
 
-A bundled list of the ~2000 most common English words is checked before any
-network request when `local_dictionary.enabled = true` (default) and
-`target_lang` starts with "zh".  With `cache.persist = true` (default),
-covered and previously translated text works offline.  Cache files live in
-|stdpath()| "data"/magpie/.
+==============================================================================
+7. API                                                          *magpie-api*
+
+>lua
+  local magpie = require("magpie")
+  magpie.translate("hello")
+  magpie.translate_cursor()
+  magpie.translate_visual()
+  magpie.translate_comment()          -- comment under cursor / Visual range
+  magpie.translate_comment({ range = { 4, 9 } })
+  magpie.translate_comments()         -- all comments in the buffer
+  magpie.check_comments({ open = false })
+  magpie.comment_mode()               -- "auto", "manual" or "off"
+  magpie.set_comment_mode("auto")
+  magpie.close()
+  magpie.version                      -- "0.3.0"
+<
+Run `:checkhealth magpie` for diagnostics.  Run the tests headlessly with: >
+  nvim --headless --clean -i NONE -u tests/init.lua
+<
 
 vim:tw=78:ts=8:noet:ft=help

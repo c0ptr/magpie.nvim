@@ -3,6 +3,7 @@ local util = require("magpie.util")
 local M = {}
 
 local lang_names = {
+    zh = "简体中文",
     ["zh-CN"] = "简体中文",
     ["zh-TW"] = "繁體中文",
     en = "English",
@@ -14,10 +15,14 @@ local lang_names = {
     ru = "Русский",
 }
 
+function M.language_name(code)
+    return lang_names[code] or code
+end
+
 function M.system_prompt(options)
-    local target = lang_names[options.target_lang] or options.target_lang
-    local source = options.source_lang == "auto" and "" or
-        (" from " .. (lang_names[options.source_lang] or options.source_lang))
+    local target = M.language_name(options.target_lang)
+    local source = options.source_lang == "auto" and ""
+        or (" from " .. M.language_name(options.source_lang))
     return "You are a translation engine. Translate the user's text"
         .. source .. " into " .. target .. ". "
         .. "Output only the translation, with no explanations, quotes or notes. "
@@ -47,11 +52,11 @@ local function build_args(cfg, body)
     return args
 end
 
-local function build_body(cfg, text, options, stream)
+local function build_body(cfg, text, options, stream, prompt)
     local body = {
         model = cfg.model,
         messages = {
-            { role = "system", content = M.system_prompt(options) },
+            { role = "system", content = prompt or M.system_prompt(options) },
             { role = "user", content = text },
         },
         temperature = cfg.temperature,
@@ -63,7 +68,7 @@ local function build_body(cfg, text, options, stream)
     return body
 end
 
-function M.translate(name, text, options, callback)
+function M.translate(name, text, options, callback, prompt)
     local cfg = options[name]
     local ok, err = require_key(cfg, name)
     if not ok then
@@ -71,9 +76,9 @@ function M.translate(name, text, options, callback)
         return nil
     end
 
-    return util.run_curl(build_args(cfg, build_body(cfg, text, options, false)), function(stdout, err)
-        if err then
-            callback(nil, name .. " 请求失败：" .. err)
+    return util.run_curl(build_args(cfg, build_body(cfg, text, options, false, prompt)), function(stdout, err_msg)
+        if err_msg then
+            callback(nil, name .. " 请求失败：" .. err_msg)
             return
         end
 
@@ -102,7 +107,7 @@ function M.translate(name, text, options, callback)
     end)
 end
 
-function M.translate_stream(name, text, options, on_delta, callback)
+function M.translate_stream(name, text, options, on_delta, callback, prompt)
     local cfg = options[name]
     local ok, err = require_key(cfg, name)
     if not ok then
@@ -142,7 +147,7 @@ function M.translate_stream(name, text, options, on_delta, callback)
         end
     end
 
-    return util.run_curl_stream(build_args(cfg, build_body(cfg, text, options, true)), on_chunk, function(_, request_error)
+    return util.run_curl_stream(build_args(cfg, build_body(cfg, text, options, true, prompt)), on_chunk, function(_, request_error)
         if request_error then
             callback(nil, name .. " 请求失败：" .. request_error)
             return

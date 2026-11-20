@@ -10,9 +10,9 @@ local function require_key(cfg)
     return true
 end
 
-local function build_body(cfg, text, options)
+local function build_body(cfg, text, options, prompt)
     return {
-        systemInstruction = { parts = { { text = chat.system_prompt(options) } } },
+        systemInstruction = { parts = { { text = prompt or chat.system_prompt(options) } } },
         contents = { { parts = { { text = text } } } },
         generationConfig = { temperature = cfg.temperature },
     }
@@ -48,7 +48,7 @@ local function collect_parts(data)
     return table.concat(pieces)
 end
 
-function M.translate(text, options, callback)
+function M.translate(text, options, callback, prompt)
     local cfg = options.gemini
     local ok, err = require_key(cfg)
     if not ok then
@@ -56,9 +56,9 @@ function M.translate(text, options, callback)
         return nil
     end
 
-    return util.run_curl(build_args(cfg, build_body(cfg, text, options)), function(stdout, err)
-        if err then
-            callback(nil, "Gemini 请求失败：" .. err)
+    return util.run_curl(build_args(cfg, build_body(cfg, text, options, prompt)), function(stdout, request_error)
+        if request_error then
+            callback(nil, "Gemini 请求失败：" .. request_error)
             return
         end
 
@@ -86,7 +86,7 @@ function M.translate(text, options, callback)
     end)
 end
 
-function M.translate_stream(text, options, on_delta, callback)
+function M.translate_stream(text, options, on_delta, callback, prompt)
     local cfg = options.gemini
     local ok, err = require_key(cfg)
     if not ok then
@@ -122,7 +122,7 @@ function M.translate_stream(text, options, on_delta, callback)
         end
     end
 
-    return util.run_curl_stream(build_args(cfg, build_body(cfg, text, options)), on_chunk, function(_, request_error)
+    return util.run_curl_stream(build_args(cfg, build_body(cfg, text, options, prompt)), on_chunk, function(_, request_error)
         if request_error then
             callback(nil, "Gemini 请求失败：" .. request_error)
             return

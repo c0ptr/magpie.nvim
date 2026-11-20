@@ -40,11 +40,31 @@ local function check_provider(name, env, optional)
     end
 end
 
+local function check_comment_translation()
+    local ok, magpie = pcall(require, "magpie")
+    if not ok or not magpie._configured or not magpie._config then
+        vim.health.info("comment translation: `require(\"magpie\").setup()` has not run yet")
+    else
+        local config = magpie._config.comment_translation
+        if not config.enabled then
+            vim.health.info("comment translation is disabled")
+        else
+            vim.health.ok(string.format("comment translation mode: %s (target: %s)", config.mode, config.target_lang))
+        end
+    end
+    if vim.treesitter and vim.treesitter.get_parser then
+        vim.health.ok("tree-sitter is available (used for precise comment detection)")
+    else
+        vim.health.info("tree-sitter is unavailable; commentstring-based detection is used")
+    end
+end
+
 function M.check()
     vim.health.start("Magpie")
     check_version()
     check_curl()
     check_local_dictionary()
+    check_comment_translation()
 
     check_provider("chatgpt", "OPENAI_API_KEY", false)
     check_provider("copilot", "GITHUB_TOKEN", false)

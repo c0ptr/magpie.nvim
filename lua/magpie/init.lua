@@ -1,31 +1,18 @@
 local config_module = require("magpie.config")
+local comments = require("magpie.comments")
 local dictionary = require("magpie.providers.dictionary")
-local chatgpt = require("magpie.providers.chatgpt")
-local copilot = require("magpie.providers.copilot")
-local gemini = require("magpie.providers.gemini")
+local engine = require("magpie.engine")
 local selection = require("magpie.selection")
 local ui = require("magpie.ui")
 local util = require("magpie.util")
-local deepseek = require("magpie.providers.deepseek")
-local youdao = require("magpie.providers.youdao")
 local dict = require("magpie.dict")
-
 
 local M = {
     _configured = false,
     _request_id = 0,
     _hover_id = 0,
-    _cache = {},
-    _cache_order = {},
     last_result = nil,
-}
-
-local providers = {
-    chatgpt = chatgpt,
-    copilot = copilot,
-    gemini = gemini,
-    deepseek = deepseek,
-    youdao = youdao,
+    version = "0.3.0",
 }
 
 local mouse_move = vim.api.nvim_replace_termcodes("<MouseMove>", true, false, true)
@@ -42,119 +29,6 @@ local function anchor_from_mouse()
             column = math.max(0, position.column - 1),
         }
     end
-end
-
-local function cache_key(text, options)
-    -- Normalize single words to lowercase so "Hello " and "hello" share an
-    -- entry; hash the provider settings instead of storing them raw.
-    local normalized = util.normalize_text(text)
-    if util.is_english_word(normalized) then
-        normalized = normalized:lower()
-    end
-    return table.concat({
-        options.provider,
-        options.source_lang,
-        options.target_lang,
-        util.hash_hex(vim.inspect(options[options.provider] or {})),
-        normalized,
-    }, "\31")
-end
-
-local function remember(key, result)
-    local cache = M._config.cache
-    if cache.max_entries == 0 then
-        return
-    end
-
-    if not M._cache[key] then
-        table.insert(M._cache_order, key)
-    end
-    M._cache[key] = result
-
-    while #M._cache_order > cache.max_entries do
-        local oldest = table.remove(M._cache_order, 1)
-        M._cache[oldest] = nil
-    end
-end
-
-local in_flight = {}
-local disk_cache = { loaded = false, path = nil, entries = {}, save_pending = false }
-
-local function disk_cache_load(options)
-    if not options.cache.persist or (disk_cache.loaded and disk_cache.path == options.cache.dir) then
-        return
-    end
-    disk_cache.loaded = true
-    disk_cache.path = options.cache.dir
-    disk_cache.entries = {}
-    local ok, lines = pcall(vim.fn.readfile, disk_cache.path .. "/cache.json")
-    if not ok or type(lines) ~= "table" then
-        return
-    end
-    local payload = util.decode_json(table.concat(lines, "\n"), "cache")
-    if type(payload) ~= "table" or type(payload.entries) ~= "table" then
-        return
-    end
-    for key, entry in pairs(payload.entries) do
-        if type(entry) == "table" and type(entry.result) == "table" then
-            disk_cache.entries[key] = { result = entry.result, ts = entry.ts or 0 }
-        end
-    end
-end
-
-local function disk_cache_save()
-    if not disk_cache.loaded or disk_cache.path == nil then
-        return
-    end
-    local payload = { version = 1, entries = {} }
-    for key, entry in pairs(disk_cache.entries) do
-        payload.entries[key] = entry
-    end
-    vim.fn.mkdir(disk_cache.path, "p")
-    local file, open_error = io.open(disk_cache.path .. "/cache.json", "w")
-    if not file then
-        util.notify("Magpie: cannot write disk cache: " .. tostring(open_error), vim.log.levels.WARN)
-        return
-    end
-    file:write(vim.json.encode(payload))
-    file:close()
-end
-
-local function disk_cache_schedule_save()
-    if disk_cache.save_pending then
-        return
-    end
-    disk_cache.save_pending = true
-    vim.defer_fn(function()
-        disk_cache.save_pending = false
-        disk_cache_save()
-    end, 3000)
-end
-
-local function disk_cache_remember(key, result, options)
-    if not options.cache.persist or not disk_cache.loaded then
-        return
-    end
-    if disk_cache.entries[key] then
-        disk_cache.entries[key] = { result = result, ts = os.time() }
-        disk_cache_schedule_save()
-        return
-    end
-    local count = 0
-    for _ in pairs(disk_cache.entries) do
-        count = count + 1
-    end
-    if count >= options.cache.max_disk_entries then
-        local oldest_key, oldest_ts = nil, nil
-        for candidate_key, entry in pairs(disk_cache.entries) do
-            if oldest_ts == nil or entry.ts < oldest_ts then
-                oldest_key, oldest_ts = candidate_key, entry.ts
-            end
-        end
-        disk_cache.entries[oldest_key] = nil
-    end
-    disk_cache.entries[key] = { result = result, ts = os.time() }
-    disk_cache_schedule_save()
 end
 
 local function should_lookup_ipa(text, options)
@@ -190,6 +64,23 @@ local function apply_keymaps()
         vim.keymap.set("x", M._config.keymaps.visual, function()
             M.translate_visual()
         end, { desc = "Translate Visual selection" })
+    end
+
+    local comment_config = M._config.comment_translation
+    if comment_config.enabled then
+        if M._config.keymaps.comment then
+            vim.keymap.set("n", M._config.keymaps.comment, function()
+                M.translate_comment()
+            end, { desc = "Translate code comment" })
+            vim.keymap.set("x", M._config.keymaps.comment, function()
+                M.translate_comment()
+            end, { desc = "Translate code comments in selection" })
+        end
+        if M._config.keymaps.comments then
+            vim.keymap.set("n", M._config.keymaps.comments, function()
+                M.translate_comments()
+            end, { desc = "Translate all Chinese comments in buffer" })
+        end
     end
 end
 
@@ -265,16 +156,10 @@ function M.setup(options)
     configure_highlights()
     apply_keymaps()
     configure_input_handler()
+    comments.setup(M._config)
+    engine.configure(M._config)
     if M._config.local_dictionary.enabled and M._config.local_dictionary.user_file then
         dict.load_user(M._config.local_dictionary.user_file)
-    end
-    if M._config.cache.persist then
-        vim.api.nvim_create_autocmd("VimLeavePre", {
-            once = true,
-            callback = function()
-                disk_cache_save()
-            end,
-        })
     end
     return M
 end
@@ -298,25 +183,15 @@ function M.translate(text, context)
         source_lang = context.source_lang or M._config.source_lang,
         target_lang = context.target_lang or M._config.target_lang,
     })
-    local provider = providers[options.provider]
-    if not provider then
+    if not engine.has_provider(options.provider) then
         util.notify("Unknown translation provider: " .. tostring(options.provider), vim.log.levels.ERROR)
         return
     end
 
     M._request_id = M._request_id + 1
     local request_id = M._request_id
-    local key = cache_key(text, options)
 
-    local cached = M._cache[key]
-    if not cached and options.cache.persist then
-        disk_cache_load(options)
-        local disk_entry = disk_cache.entries[key]
-        if disk_entry then
-            cached = disk_entry.result
-            remember(key, cached)
-        end
-    end
+    local cached = engine.get(text, options, "word")
     if cached then
         M.last_result = cached
         ui.show_result(cached, context.anchor, options)
@@ -331,106 +206,52 @@ function M.translate(text, context)
             translation = entry.zh,
             detected_source_lang = "en",
         }
-        remember(key, result)
-        disk_cache_remember(key, result, options)
+        engine.remember(text, options, "word", result)
         M.last_result = result
         ui.show_result(result, context.anchor, options)
         return
     end
 
-    local function complete(result, translate_error)
-        if request_id ~= M._request_id then
-            return
-        end
-        if translate_error then
-            ui.close()
-            local hint = ""
-            if options.local_dictionary.enabled
-                and util.is_english_word(text)
-                and options.target_lang:lower():match("^zh") then
-                hint = "（该词不在本地词库中）"
-            end
-            util.notify(translate_error .. hint, vim.log.levels.ERROR)
-            return
-        end
-        M.last_result = result
-        ui.show_result(result, context.anchor, options)
-    end
-
-    local pending = in_flight[key]
-    if pending then
-        table.insert(pending.callbacks, complete)
-        return
-    end
-
-    for other_key, pending_entry in pairs(in_flight) do
-        if pending_entry.handle then
-            pcall(pending_entry.handle.kill, pending_entry.handle)
-        end
-        if pending_entry.handle_ipa then
-            pcall(pending_entry.handle_ipa.kill, pending_entry.handle_ipa)
-        end
-        in_flight[other_key] = nil
-    end
-
-    pending = { callbacks = { complete } }
-    in_flight[key] = pending
-
-    ui.show_loading(context.anchor, options)
-
-    local provider_done = false
     local ipa_pending = should_lookup_ipa(text, options)
-    local ipa_done = not ipa_pending
+    local ipa_ready = not ipa_pending
+    local ipa_value = nil
     local result = nil
-    local translate_error = nil
 
-    local function try_finish()
-        if not provider_done or not ipa_done or in_flight[key] ~= pending then
+    local function show_result()
+        if request_id ~= M._request_id or not result then
             return
         end
-        in_flight[key] = nil
-        for _, cb in ipairs(pending.callbacks) do
-            cb(result, translate_error)
+        if ipa_pending and not ipa_ready then
+            result.phonetic = "查询中…"
         end
-    end
-
-    local function on_ipa(phonetic)
-        if result and request_id == M._request_id then
-            result.phonetic = phonetic or "—"
-            ui.show_result(result, context.anchor, options)
-        end
-        ipa_done = true
-        try_finish()
-    end
-
-    local function on_provider(response, provider_error)
-        if provider_error then
-            translate_error = provider_error
-        else
-            result = {
-                text = text,
-                phonetic = ipa_pending and "查询中…" or "—",
-                translation = response.translation,
-                detected_source_lang = response.detected_source_lang or options.source_lang,
-            }
-            remember(key, result)
-            disk_cache_remember(key, result, options)
-            if ipa_pending then
-                ui.show_result(result, context.anchor, options)
-            end
-        end
-        provider_done = true
-        try_finish()
+        M.last_result = result
+        ui.show_result(result, context.anchor, options)
     end
 
     if ipa_pending then
-        pending.handle_ipa = dictionary.lookup(text, options, on_ipa)
+        dictionary.lookup(text, options, function(phonetic)
+            if request_id ~= M._request_id then
+                return
+            end
+            ipa_ready = true
+            ipa_value = phonetic
+            if result then
+                result.phonetic = phonetic or "—"
+                show_result()
+            end
+        end)
     end
 
-    if options.stream.enabled and provider.translate_stream then
-        local streamed = ""
-        local last_ui = 0
-        pending.handle = provider.translate_stream(text, options, function(delta)
+    ui.show_loading(context.anchor, options)
+
+    local streamed = ""
+    local last_ui = 0
+    engine.request(text, options, {
+        flavor = "word",
+        channel = "popup",
+        cancel_previous = true,
+        stream = options.stream.enabled,
+        on_delta = function(delta)
             if request_id ~= M._request_id then
                 return
             end
@@ -445,10 +266,33 @@ function M.translate(text, context)
                     detected_source_lang = options.source_lang,
                 }, context.anchor, options)
             end
-        end, on_provider)
-    else
-        pending.handle = provider.translate(text, options, on_provider)
-    end
+        end,
+    }, function(response, translate_error)
+        if request_id ~= M._request_id then
+            return
+        end
+        if translate_error then
+            ui.close()
+            local hint = ""
+            if
+                options.local_dictionary.enabled
+                and util.is_english_word(text)
+                and options.target_lang:lower():match("^zh")
+            then
+                hint = "（该词不在本地词库中）"
+            end
+            util.notify(translate_error .. hint, vim.log.levels.ERROR)
+            return
+        end
+
+        result = {
+            text = text,
+            phonetic = ipa_ready and (ipa_value or "—") or "查询中…",
+            translation = response.translation,
+            detected_source_lang = response.detected_source_lang or options.source_lang,
+        }
+        show_result()
+    end)
 end
 
 function M.translate_cursor()
@@ -487,6 +331,31 @@ function M.translate_from_command(text)
     else
         M.translate_cursor()
     end
+end
+
+function M.translate_comment(context)
+    ensure_setup()
+    return comments.translate_at_cursor(context)
+end
+
+function M.translate_comments()
+    ensure_setup()
+    return comments.translate_buffer()
+end
+
+function M.check_comments(options)
+    ensure_setup()
+    return comments.check(options)
+end
+
+function M.comment_mode()
+    ensure_setup()
+    return comments.mode()
+end
+
+function M.set_comment_mode(mode)
+    ensure_setup()
+    return comments.set_mode(mode)
 end
 
 function M.close()

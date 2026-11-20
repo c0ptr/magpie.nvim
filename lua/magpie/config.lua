@@ -12,6 +12,59 @@ M.defaults = {
     keymaps = {
         normal = "<leader>tw",
         visual = "<leader>tw",
+        comment = "<leader>tc",
+        comments = "<leader>tC",
+    },
+
+    -- Translate comments while writing code (v0.3).  Manual mode only
+    -- translates when you ask; auto mode also translates the comment under the
+    -- cursor when you leave Insert mode.
+    comment_translation = {
+        enabled = true,
+        mode = "manual", -- "manual" | "auto"
+        target_lang = "en",
+        source_lang = "auto",
+        filetypes = nil, -- nil = every filetype with comment syntax
+        exclude_filetypes = {
+            "checkhealth",
+            "diff",
+            "gitcommit",
+            "gitrebase",
+            "help",
+            "lspinfo",
+            "man",
+            "markdown",
+            "neo-tree",
+            "notify",
+            "noice",
+            "NvimTree",
+            "prompt",
+            "qf",
+            "snacks_dashboard",
+            "text",
+        },
+        use_treesitter = true,
+        debounce_ms = 500,
+        max_batch = 6,
+        max_chars = 3000,
+        notify = "on_error", -- "always" | "on_error" | "never"
+        skip_patterns = {
+            "eslint%-disable",
+            "eslint%-enable",
+            "@ts%-ignore",
+            "@ts%-expect%-error",
+            "noqa",
+            "nolint",
+            "type:%s*ignore",
+            "go:generate",
+            "go:build",
+            "go:embed",
+            "^%+build",
+            "SPDX%-License%-Identifier",
+            "^vim:",
+            "^vi:",
+            "^ex:",
+        },
     },
 
     hover = {
@@ -100,6 +153,7 @@ M.defaults = {
 }
 
 local function validate(options)
+    local comment_translation = options.comment_translation
     vim.validate({
         source_lang = { options.source_lang, "string" },
         target_lang = { options.target_lang, "string" },
@@ -118,6 +172,30 @@ local function validate(options)
         local_dictionary_user_file = { options.local_dictionary.user_file, "string" },
         stream_enabled = { options.stream.enabled, "boolean" },
         ui_max_width = { options.ui.max_width, "number" },
+        comment_translation_enabled = { comment_translation.enabled, "boolean" },
+        comment_translation_mode = {
+            comment_translation.mode,
+            function(value)
+                return value == "manual" or value == "auto"
+            end,
+            "'manual' or 'auto'",
+        },
+        comment_translation_target_lang = { comment_translation.target_lang, "string" },
+        comment_translation_source_lang = { comment_translation.source_lang, "string" },
+        comment_translation_debounce = { comment_translation.debounce_ms, "number" },
+        comment_translation_max_batch = { comment_translation.max_batch, "number" },
+        comment_translation_max_chars = { comment_translation.max_chars, "number" },
+        comment_translation_use_treesitter = { comment_translation.use_treesitter, "boolean" },
+        comment_translation_notify = {
+            comment_translation.notify,
+            function(value)
+                return value == "always" or value == "on_error" or value == "never"
+            end,
+            "'always', 'on_error' or 'never'",
+        },
+        comment_translation_filetypes = { comment_translation.filetypes, "table", true },
+        comment_translation_exclude = { comment_translation.exclude_filetypes, "table" },
+        comment_translation_skip_patterns = { comment_translation.skip_patterns, "table" },
     })
 
     if options.hover.delay_ms < 0 then
@@ -129,10 +207,33 @@ local function validate(options)
     if options.cache.max_disk_entries < 0 then
         error("Magpie: cache.max_disk_entries must not be negative")
     end
+    if comment_translation.debounce_ms < 0 then
+        error("Magpie: comment_translation.debounce_ms must not be negative")
+    end
+    if comment_translation.max_batch < 1 then
+        error("Magpie: comment_translation.max_batch must be at least 1")
+    end
+    if comment_translation.max_chars < 1 then
+        error("Magpie: comment_translation.max_chars must be at least 1")
+    end
 end
 
 function M.build(options)
     local merged = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), options or {})
+
+    -- `tbl_deep_extend` merges list values by index.  A user-provided list
+    -- must replace the default list instead of being extended by it.
+    if type(options) == "table" and type(options.comment_translation) == "table" then
+        if options.comment_translation.filetypes ~= nil then
+            merged.comment_translation.filetypes = vim.deepcopy(options.comment_translation.filetypes)
+        end
+        if options.comment_translation.exclude_filetypes ~= nil then
+            merged.comment_translation.exclude_filetypes = vim.deepcopy(options.comment_translation.exclude_filetypes)
+        end
+        if options.comment_translation.skip_patterns ~= nil then
+            merged.comment_translation.skip_patterns = vim.deepcopy(options.comment_translation.skip_patterns)
+        end
+    end
 
     -- Keep secrets out of the default table and make environment configuration
     -- convenient for lazy.nvim users.

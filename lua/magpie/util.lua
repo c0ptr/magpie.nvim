@@ -25,6 +25,32 @@ function M.is_english_word(text)
     return text:match("^[A-Za-z][A-Za-z'%-]*$") ~= nil
 end
 
+-- CJK Unified Ideographs (U+4E00-U+9FFF) and Extension A (U+3400-U+3FFF)
+-- encoded as UTF-8.  The lead-byte checks are deliberately conservative: they
+-- only cover ranges that are Han characters, not Hiragana/Katakana/Hangul.
+function M.has_chinese(text)
+    return text:find("[\227][\144-\191]") ~= nil
+        or text:find("[\228-\233][\128-\191]") ~= nil
+end
+
+function M.has_latin(text)
+    return text:match("[A-Za-z]") ~= nil
+end
+
+-- Normalize a multiline block for cache keys: trim every line, collapse runs
+-- of whitespace inside a line, and keep the line structure intact.
+function M.normalize_block(text)
+    local lines = vim.split((text:gsub("\r\n", "\n"):gsub("\r", "\n")), "\n", { plain = true })
+    for index, line in ipairs(lines) do
+        lines[index] = (line:gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1"))
+    end
+    return table.concat(lines, "\n")
+end
+
+function M.escape_pattern(text)
+    return (text:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+end
+
 function M.url_encode(text)
     return (text:gsub("[^%w%-%._~]", function(character)
         return string.format("%%%02X", string.byte(character))
