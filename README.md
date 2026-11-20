@@ -1,5 +1,7 @@
 # Magpie.nvim · v0.3
 
+[中文文档](README.zh-CN.md) | [English](README.md)
+
 A lightweight, dependency-free translation plugin for Neovim. Translate the
 word under your cursor, a Visual selection, or text you provide, then view the
 source text, pronunciation, and translation in a native floating window.
