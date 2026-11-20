@@ -13,6 +13,7 @@ local state = {
     detect_cache = {},
     insert_marks = {},
     last_write = {},
+    pending_applies = {},
 }
 
 local apply_namespace = vim.api.nvim_create_namespace("magpie-comment-apply")
@@ -1443,6 +1444,18 @@ function M._translate(comments, context)
         if not vim.api.nvim_buf_is_valid(bufnr) then
             return
         end
+        if
+            vim.api.nvim_get_current_buf() == bufnr
+            and vim.api.nvim_get_mode().mode:sub(1, 1) == "i"
+        then
+            local queue = state.pending_applies[bufnr] or {}
+            table.insert(queue, function()
+                finished = false
+                finish()
+            end)
+            state.pending_applies[bufnr] = queue
+            return
+        end
         if vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
             if context.origin ~= "auto" then
                 report_error("the buffer changed while translating")
@@ -1594,6 +1607,20 @@ local function take_insert_rows(bufnr)
     return rows
 end
 
+local function flush_pending_applies(bufnr)
+    local queue = state.pending_applies[bufnr]
+    state.pending_applies[bufnr] = nil
+    if not queue then
+        return
+    end
+    for _, run in ipairs(queue) do
+        local ok, run_error = pcall(run)
+        if not ok then
+            notify("failed to apply deferred translation: " .. tostring(run_error), vim.log.levels.WARN)
+        end
+    end
+end
+
 local function register_autocmds()
     if state.augroup then
         pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
@@ -1612,6 +1639,7 @@ local function register_autocmds()
             state.tokens[args.buf] = nil
             state.detect_cache[args.buf] = nil
             state.last_write[args.buf] = nil
+            state.pending_applies[args.buf] = nil
             clear_insert_marks(args.buf)
         end,
     })
@@ -1644,6 +1672,8 @@ local function register_autocmds()
     vim.api.nvim_create_autocmd("InsertLeave", {
         group = state.augroup,
         callback = function()
+            local bufnr = vim.api.nvim_get_current_buf()
+            flush_pending_applies(bufnr)
             M._on_insert_leave()
         end,
     })
@@ -1663,6 +1693,7 @@ function M.setup(options)
     state.tokens = {}
     state.detect_cache = {}
     state.last_write = {}
+    state.pending_applies = {}
     register_autocmds()
 end
 
@@ -1709,8 +1740,16 @@ function M._on_insert_enter()
     if not vim.api.nvim_buf_is_valid(bufnr) then
         return
     end
-    -- Invalidate a debounce timer from the previous insert session and start
-    -- tracking the rows touched in this one.
+    -- A debounce timer from the previous insert session may not have fired
+    -- yet.  Start the pending translation now, resolving the typed rows after
+    -- any edits that already happened; the request only applies if the
+    -- comment itself is still unchanged.
+    if M.auto_enabled() and M.eligible(bufnr) then
+        local rows = take_insert_rows(bufnr)
+        if next(rows) then
+            M._auto_translate_now(bufnr, rows)
+        end
+    end
     state.tokens[bufnr] = (state.tokens[bufnr] or 0) + 1
     clear_insert_marks(bufnr)
 end
@@ -1750,15 +1789,8 @@ function M._on_insert_leave()
         return
     end
 
-    local rows = take_insert_rows(bufnr)
-    if vim.api.nvim_win_is_valid(0) and vim.api.nvim_win_get_buf(0) == bufnr then
-        local cursor = vim.api.nvim_win_get_cursor(0)
-        rows[cursor[1] - 1] = true
-    end
-
     local token = (state.tokens[bufnr] or 0) + 1
     state.tokens[bufnr] = token
-    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
     local delay = math.max(0, state.options.comment_translation.debounce_ms)
     vim.defer_fn(function()
         if state.tokens[bufnr] ~= token or not M.auto_enabled() then
@@ -1770,11 +1802,12 @@ function M._on_insert_leave()
         if vim.api.nvim_get_current_buf() ~= bufnr then
             return
         end
-        if vim.api.nvim_get_mode().mode:sub(1, 1) == "i" then
-            return
-        end
-        if vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
-            return
+        -- Resolve the typed rows now, after any edits since InsertLeave, so a
+        -- comment that moved still gets translated.
+        local rows = take_insert_rows(bufnr)
+        if vim.api.nvim_win_is_valid(0) and vim.api.nvim_win_get_buf(0) == bufnr then
+            local cursor = vim.api.nvim_win_get_cursor(0)
+            rows[cursor[1] - 1] = true
         end
         M._auto_translate_now(bufnr, rows)
     end, delay)

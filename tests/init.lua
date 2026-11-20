@@ -646,6 +646,95 @@ end, "auto mode should translate comments touched earlier in the insert session:
   .. vim.inspect(lines_of(session_buffer)))
 assert_equal(1, session_calls.count, "the insert session should send one comment request")
 
+-- auto translations survive unrelated edits: the comment is matched by its
+-- content and its tracked position instead of a frozen buffer snapshot
+translate.setup(comment_options({ mode = "auto" }))
+local resilient_callback
+vim.system = function(_, _, cb)
+  resilient_callback = cb
+  return { kill = function() end }
+end
+local resilient_buffer = new_comment_buffer("lua", { "-- 中文并发保留", "local resilient_a = 1" })
+vim.api.nvim_win_set_cursor(0, { 1, 3 })
+vim.cmd("doautocmd InsertEnter")
+vim.cmd("doautocmd TextChangedI")
+vim.cmd("doautocmd InsertLeave")
+-- keep editing before the debounce timer fires: the comment moves down one row
+vim.api.nvim_buf_set_lines(resilient_buffer, 0, 0, false, { "local resilient_header = true" })
+wait_for(function()
+  return resilient_callback ~= nil
+end, "auto request should start")
+resilient_callback({
+  code = 0,
+  stdout = vim.json.encode({ choices = { { message = { content = "Resilient english" } } } }),
+  stderr = "",
+})
+wait_for(function()
+  return lines_of(resilient_buffer)[2] == "-- Resilient english"
+end, "auto translation should survive unrelated edits: " .. vim.inspect(lines_of(resilient_buffer)))
+assert_equal("local resilient_header = true", lines_of(resilient_buffer)[1], "the inserted line must stay intact")
+
+-- a comment that was edited while translating is left alone
+translate.setup(comment_options({ mode = "auto" }))
+local edited_callback
+vim.system = function(_, _, cb)
+  edited_callback = cb
+  return { kill = function() end }
+end
+local edited_buffer = new_comment_buffer("lua", { "-- 中文被修改", "local edited_a = 1" })
+vim.api.nvim_win_set_cursor(0, { 1, 3 })
+vim.cmd("doautocmd InsertEnter")
+vim.cmd("doautocmd TextChangedI")
+vim.cmd("doautocmd InsertLeave")
+wait_for(function()
+  return edited_callback ~= nil
+end, "auto request should start")
+vim.api.nvim_buf_set_lines(edited_buffer, 0, 1, false, { "-- 改成别的中文" })
+edited_callback({
+  code = 0,
+  stdout = vim.json.encode({ choices = { { message = { content = "Edited english" } } } }),
+  stderr = "",
+})
+vim.wait(300, function()
+  return false
+end, 10)
+assert_equal("-- 改成别的中文", lines_of(edited_buffer)[1], "an edited comment must not be overwritten")
+
+-- results arriving while the user is still typing are applied on InsertLeave
+translate.setup(comment_options({ mode = "auto" }))
+local deferred_callback
+vim.system = function(_, _, cb)
+  deferred_callback = cb
+  return { kill = function() end }
+end
+local deferred_buffer = new_comment_buffer("lua", { "-- 中文插入中应用", "local deferred_a = 1" })
+vim.api.nvim_win_set_cursor(0, { 1, 3 })
+vim.cmd("doautocmd InsertEnter")
+vim.cmd("doautocmd TextChangedI")
+vim.cmd("doautocmd InsertLeave")
+wait_for(function()
+  return deferred_callback ~= nil
+end, "auto request should start")
+-- Simulate that the response arrives while Insert mode is active.
+local original_get_mode = vim.api.nvim_get_mode
+vim.api.nvim_get_mode = function()
+  return { mode = "i", blocking = false }
+end
+deferred_callback({
+  code = 0,
+  stdout = vim.json.encode({ choices = { { message = { content = "Deferred english" } } } }),
+  stderr = "",
+})
+vim.wait(300, function()
+  return false
+end, 10)
+assert_equal("-- 中文插入中应用", lines_of(deferred_buffer)[1], "must not apply while still typing")
+vim.api.nvim_get_mode = original_get_mode
+vim.cmd("doautocmd InsertLeave")
+wait_for(function()
+  return lines_of(deferred_buffer)[1] == "-- Deferred english"
+end, "deferred translation should apply after leaving insert: " .. vim.inspect(lines_of(deferred_buffer)))
+
 -- editing code on a different line does not rewrite an unrelated Chinese comment
 translate.setup(comment_options({ mode = "auto" }))
 local untouched_calls = mock_translation("must not be used")
